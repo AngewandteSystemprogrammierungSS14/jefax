@@ -16,9 +16,7 @@ task_t TASKS[] = {
 };
 
 void jefax()
-{
-	enableInterrupts();
-	
+{	
 	initTask(&TASKS[0]);
 	initTask(&TASKS[1]);
 	

@@ -85,14 +85,14 @@
 					"sei							\n\t"	\
 );
 
-// Prototypes
-static int idleTaskFunction();
-static void setTimer();
-
 /**
  * The global, extern defined task list with all tasks to dispatch.
  */
 extern task_t TASKS[];
+
+// Prototypes
+static int idleTaskFunction();
+static void setTimer();
 
 /**
  * Which task is currently running:
@@ -104,16 +104,22 @@ extern task_t TASKS[];
 int currentTaskNumber = -1;
 
 task_t idleTask = {idleTaskFunction, 0, 0, {0}};
+uint8_t *main_stackpointer;
 
 void startDispatcher()
 {
 	initLED();
-	initTask(&idleTask);
+	enableInterrupts();
 	
-	setTimer();
+	initTask(&idleTask);
+	// Save the main context
+	SAVE_CONTEXT();
+	main_stackpointer = (uint8_t *) SP;
 	
 	// Switch to dispatcher idle task context
 	SP = (uint16_t) (idleTask.stackpointer);
+	
+	setTimer();
 	
 	// Start idle task
 	idleTaskFunction();
@@ -140,7 +146,7 @@ static int idleTaskFunction()
 	
 	while (1) {
 		setLED(~(1 << led++));
-		_delay_ms(500);
+		//_delay_ms(500);
 		if (led == 8)
 			led = 0;
 	}
@@ -160,7 +166,7 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 		
 		// Begin with the tasks
 		currentTaskNumber = 0;
-		} else {
+	} else {
 		// Save stackpointer
 		TASKS[currentTaskNumber].stackpointer = (uint8_t *) SP;
 		

@@ -31,7 +31,7 @@ void initTask(task_t *task)
 int countTasks()
 {	
 	int i = 0;
-	while (TASKS[i].function()) {
+	while (TASKS[i].function) {
 		++i;
 	}
 	return i;
