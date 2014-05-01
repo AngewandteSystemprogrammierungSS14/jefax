@@ -5,12 +5,10 @@
  *  Author: Fabian
  */ 
 
-#include <avr/interrupt.h>
+#include <util/atomic.h>
 #include <stddef.h>
-#include "lock.h"
 
-int safeCLI();
-void safeSEI(const uint8_t p_state);
+#include "lock.h"
 
 void enqueueTask(struct taskQueue *p_queue, task_t* p_task);
 task_t* dequeueTask(struct taskQueue *p_queue);
@@ -26,17 +24,18 @@ int initMutex(mutex_t *p_mutex)
 
 void lockMutex(mutex_t *p_mutex)
 {
-	uint8_t interruptStatus = safeCLI();
-	
-	uint8_t locked = p_mutex->lock;
-	if(locked)
+	uint8_t locked = 0;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		//TODO enqueueTask(currentTask);
-		//TODO setTaskState(currentTask, blockingMode);
-	}
+		locked = p_mutex->lock;
+		if(locked)
+		{
+			//TODO enqueueTask(currentTask);
+			//TODO setTaskState(currentTask, blockingMode);
+		}
 	
-	p_mutex->lock = 1;
-	safeSEI(interruptStatus);
+		p_mutex->lock = 1;
+	}
 	
 	if(locked)
 		;//TODO scheduleTask(currentTask);
@@ -44,18 +43,18 @@ void lockMutex(mutex_t *p_mutex)
 
 void unlockMutex(mutex_t *p_mutex)
 {
-	uint8_t interruptStatus = safeCLI();
+	task_t *task = NULL;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		task = dequeueTask(&(p_mutex->queue));
 	
-	task_t *task = dequeueTask(&(p_mutex->queue));
+		//nobody is waiting for mutex anymore
+		if(task == NULL)
+			p_mutex->lock = 0;
+		else
+			;//TODO setTaskState(task, readyMode);
+	}
 	
-	//nobody is waiting for mutex anymore
-	if(task == NULL)
-		p_mutex->lock = 0;
-	else
-		;//TODO setTaskState(task, readyMode);
-	
-	
-	safeSEI(interruptStatus);
 	if(task != NULL)
 		;//TODO scheduleTask(task)
 }
@@ -71,12 +70,12 @@ int initCondition(condition_t *p_cond)
 
 void waitCondition(condition_t *p_cond, mutex_t *p_mutex)
 {
-	uint8_t interruptStatus = safeCLI();
-	
-	//TODO enqueueTask(&(p_cond->queue), currentTask);
-	unlockMutex(p_mutex);
-	//TODO setTaskState(currentTask, blockingMode);
-	safeSEI(interruptStatus);
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		//TODO enqueueTask(&(p_cond->queue), currentTask);
+		unlockMutex(p_mutex);
+		//TODO setTaskState(currentTask, blockingMode);
+	}
 	
 	//TODO schedule(currentTask);
 	
@@ -86,28 +85,12 @@ void waitCondition(condition_t *p_cond, mutex_t *p_mutex)
 
 void signalCondition(condition_t *p_cond)
 {
-	uint8_t interruptStatus = safeCLI();
-	
-	task_t *task = dequeueTask(&(p_cond->queue));
-	if(task != NULL)
-		;//TODO setTaskState(task, readyMode);
-	
-	safeSEI(interruptStatus);
-}
-
-int safeCLI()
-{
-	uint8_t result = SREG & 0x80;
-	cli();
-	return result;
-}
-
-void safeSEI(const uint8_t p_state)
-{
-	if(p_state & 0x80)
-		sei();
-	/*else		TODO is this needed?
-		cli();*/
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		task_t *task = dequeueTask(&(p_cond->queue));
+		if(task != NULL)
+			;//TODO setTaskState(task, readyMode);
+	}
 }
 
 void enqueueTask(struct taskQueue *p_queue, task_t* p_task)
