@@ -1,6 +1,11 @@
 #include "task.h"
+#include "jefax_xmega128.h"
 
 extern task_t TASKS[];
+
+int idleTaskFunction();
+
+static task_t idleTask = {idleTaskFunction, 0, 0, {0}};
 
 void initTask(task_t *task)
 {
@@ -35,4 +40,23 @@ int countTasks()
 		++i;
 	}
 	return i;
+}
+
+task_t *getIdleTask()
+{
+	return &idleTask;
+}
+
+int idleTaskFunction()
+{	
+	uint8_t led = 0;
+	
+	while (1) {
+		setLED(~(1 << led++));
+		//_delay_ms(500);
+		if (led == 8)
+			led = 0;
+	}
+	
+	return 0;
 }

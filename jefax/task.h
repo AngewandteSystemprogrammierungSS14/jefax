@@ -8,6 +8,8 @@
 
 #define STACK_SIZE 100
 
+typedef enum { READY, RUNNING, BLOCKING } taskState_t;
+	
 /**
  * This struct represents a task. To use a task, the function
  * initTask must be called.
@@ -36,6 +38,9 @@ typedef struct {
 	 * @note This stack is not really in the .stack section.
 	 */
 	uint8_t stack[STACK_SIZE];
+	
+	unsigned int priority;
+	taskState_t state;
 } task_t;
 
 /**
@@ -50,3 +55,5 @@ void initTask(task_t *task);
  * task struct array.
  */
 int countTasks();
+
+task_t *getIdleTask();

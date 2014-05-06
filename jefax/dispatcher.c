@@ -1,5 +1,6 @@
 #include "dispatcher.h"
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 
 /**
  * Disables interrupts and saves the working registers and the sreg on the stack.
@@ -85,13 +86,16 @@
 					"sei							\n\t"	\
 );
 
+#define MS_TO_TIMER_PER(ms) (((unsigned long) ms) * 32000000UL / 256UL)
+
 /**
  * The global, extern defined task list with all tasks to dispatch.
  */
 extern task_t TASKS[];
 
+extern int (*idleTaskFunction) ();
+
 // Prototypes
-static int idleTaskFunction();
 static void setTimer();
 
 /**
@@ -103,7 +107,6 @@ static void setTimer();
  */
 int currentTaskNumber = -1;
 
-task_t idleTask = {idleTaskFunction, 0, 0, {0}};
 uint8_t *main_stackpointer;
 
 void startDispatcher()
@@ -111,13 +114,13 @@ void startDispatcher()
 	initLED();
 	enableInterrupts();
 	
-	initTask(&idleTask);
+	initTask(getIdleTask());
 	// Save the main context
 	SAVE_CONTEXT();
 	main_stackpointer = (uint8_t *) SP;
 	
 	// Switch to dispatcher idle task context
-	SP = (uint16_t) (idleTask.stackpointer);
+	SP = (uint16_t) (getIdleTask()->stackpointer);
 	
 	setTimer();
 	
@@ -132,26 +135,18 @@ void startDispatcher()
 static void setTimer()
 {
 	// Set 16 bit timer
-	TCC0.CTRLA = TC_CLKSEL_DIV1_gc; // 256 prescaler -> 3900 / sec -> 65536 max.
+	TCC0.CTRLA = TC_CLKSEL_DIV256_gc; // 256 prescaler -> 3900 / sec -> 65536 max.
 	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
+	TCC0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
+	TCC0.CNT = 0x00;
 }
 
-/**
- * This is the dispatchers task and the first function that runs
- * after starting the dispatcher.
- */
-static int idleTaskFunction()
-{	
-	uint8_t led = 0;
-	
-	while (1) {
-		setLED(~(1 << led++));
-		//_delay_ms(500);
-		if (led == 8)
-			led = 0;
+void setInterruptTime(unsigned int p_msec)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		TCC0.PER = MS_TO_TIMER_PER(p_msec); // Top-Value (period)
 	}
-	
-	return 0;
 }
 
 ISR(TCC0_OVF_vect, ISR_NAKED)
@@ -162,7 +157,7 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 		// Idle task
 		
 		// Save stackpointer
-		idleTask.stackpointer = (uint8_t *) SP;
+		getIdleTask()->stackpointer = (uint8_t *) SP;
 		
 		// Begin with the tasks
 		currentTaskNumber = 0;
@@ -173,7 +168,7 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 		// TODO: Is this okay?
 		
 		// Switch to dispatcher idle task context
-		SP = (uint16_t) (idleTask.stackpointer);
+		SP = (uint16_t) (getIdleTask()->stackpointer);
 		
 		// Got to next task: Switch between 0 and 1
 		currentTaskNumber = (~currentTaskNumber & 0b00000001);

@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include <stdlib.h>
 #include <assert.h>
+#include <util/atomic.h>
 
 #define DEF_TASK_LIST_SIZE 20
 
@@ -24,17 +25,22 @@ static struct taskList readyTasks;
 static struct taskList blockingTasks;
 static scheduler_t scheduler;
 
-static void setTaskState(task_t *p_task, taskState_t p_state);
+/* prototypes */
+static void setRRScheduler();
 static task_t* getNextTaskRR();
+static int getRRIndex(struct taskList *p_tasks, task_t *p_task);
 static void updateBlockingTasksRR();
 static void removeTask(struct taskList *p_tasks, int p_index);
-static void addRRTask(struct taskList *p_tasks, task_t *p_task);
-static void addTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index);
+static void insertRRTask(struct taskList *p_tasks, task_t *p_task);
+static void insertTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index);
 static void addTask(struct taskList *p_tasks, task_t *p_task);
+
+/* callbacks */
+task_t* (*getNextTaskCB)();
 
 void initScheduler()
 {
-	scheduler = RR_SCHEDULER;
+	setScheduler(RR_SCHEDULER);
 	readyTasks.size = DEF_TASK_LIST_SIZE;
 	readyTasks.count = 0;
 	
@@ -47,7 +53,7 @@ void initScheduler()
 	for(i = 0; i < taskCount; ++i)
 	{
 		TASKS[i].state = READY;
-		addRRTask(&readyTasks, &TASKS[i]); 
+		insertRRTask(&readyTasks, &TASKS[i]); 
 	}
 }
 
@@ -58,36 +64,53 @@ void setCurrentTaskState(taskState_t p_state)
 
 void setTaskState(task_t *p_task, taskState_t p_state)
 {
-	p_task->state = p_state;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		p_task->state = p_state;
+		//check if high prior task got ready
+		if(p_task->state == READY && p_task->priority < runningTask->priority)
+			runningTask->state = READY;
+	}
+	
+	if(runningTask->state != RUNNING)
+		schedule();
 }
 
 void schedule()
 {
+	
+	// create interrupt
+	TCC0.CNT = TCC0.PER - 1;
 	// wait to be exchanged
-	// TODO create Interrupt
 	while(runningTask->state != RUNNING)
 	{ }
 }
 
 task_t* getNextTask()
 {
-	task_t *result = runningTask;
-	switch(scheduler)
-	{
-		case RR_SCHEDULER:
-			result = getNextTaskRR();
-			break;
-	}
+	runningTask = getNextTaskCB();
+	runningTask->state = RUNNING;
 	
-	return result;
+	return runningTask;
 }
 
 void setScheduler(scheduler_t p_scheduler)
 {
 	scheduler = p_scheduler;
+	switch(scheduler)
+	{
+		case RR_SCHEDULER:
+		setRRScheduler();
+		break;
+	}
 }
 
-task_t* getNextTaskRR()
+static void setRRScheduler()
+{
+	getNextTaskCB = getNextTaskRR;
+}
+
+static task_t* getNextTaskRR()
 {
 	task_t *result;
 	
@@ -95,10 +118,15 @@ task_t* getNextTaskRR()
 	
 	//ready list is empty
 	if(readyTasks.count <= 0)
-		result = runningTask;
+	{
+		if(runningTask->state == BLOCKING)
+			result = getIdleTask();
+		else
+			result = runningTask;
+	}
 	else
 	{
-		// get next task with highest prio
+		// get next task with highest priority
 		result = readyTasks.elements[readyTasks.count - 1];
 		--readyTasks.count;
 		
@@ -108,27 +136,27 @@ task_t* getNextTaskRR()
 		
 	//put runningTask in correct List
 	if(runningTask->state == READY)
-		addRRTask(&readyTasks, runningTask);
+		insertRRTask(&readyTasks, runningTask);
 	else if(runningTask->state == BLOCKING)
 		addTask(&blockingTasks, runningTask);
 	
 	return result;
 }
 
-void updateBlockingTasksRR()
+static void updateBlockingTasksRR()
 {
 	int i;
 	for(i = 0; i < blockingTasks.count; ++i)
 	{
 		if(blockingTasks.elements[i]->state != BLOCKING)
 		{
-			addRRTask(&readyTasks, blockingTasks.elements[i]);
+			insertRRTask(&readyTasks, blockingTasks.elements[i]);
 			removeTask(&blockingTasks, i);
 		}
 	}
 }
 
-void removeTask(struct taskList *p_tasks, int p_index)
+static void removeTask(struct taskList *p_tasks, int p_index)
 {
 	assert(p_index < p_tasks->count);
 	
@@ -141,34 +169,35 @@ void removeTask(struct taskList *p_tasks, int p_index)
 }
 
 
-void addRRTask(struct taskList *p_tasks, task_t *p_task)
+static void insertRRTask(struct taskList *p_tasks, task_t *p_task)
 {
 	int index;
-	int left = 0;
-	int right = p_tasks->count - 1;
 	
 	assert(p_tasks->count < p_tasks->size);
 	
-	//find sorted index
-	while(left <= right)
-	{
-		index = (left + right) / 2;
-		if(p_tasks->elements[index]->priority == p_task->priority)
-		{
-			while(p_tasks->elements[index]->priority == p_task->priority)
-				--index;
-			break;
-		}
-		else if(p_tasks->elements[index]->priority >  p_task->priority)
-			left = index - 1;
-		else
-			right = index + 1;
-	}
+	index = getRRIndex(p_tasks, p_task);
 	
-	addTaskAt(p_tasks, p_task, index);
+	insertTaskAt(p_tasks, p_task, index);
 }
 
-void addTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index)
+static int getRRIndex(struct taskList *p_tasks, task_t *p_task)
+{
+	int result;
+	
+	if(p_tasks->count == 0)
+		return 0;
+		
+	result = p_tasks->count / 2;
+	if(p_tasks->elements[result]->priority <= p_task->priority)
+		result = 0;
+	
+	while(p_tasks->elements[result]->priority > p_task->priority)
+		++result;
+		
+	return result;
+}
+
+static void insertTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index)
 {
 	assert(p_tasks->count < p_tasks->size);
 	
@@ -179,7 +208,7 @@ void addTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index)
 	++p_tasks->count;
 }
 
-void addTask(struct taskList *p_tasks, task_t *p_task)
+static void addTask(struct taskList *p_tasks, task_t *p_task)
 {
 	assert(p_tasks->count < p_tasks->size);
 	
