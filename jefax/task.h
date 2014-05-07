@@ -17,10 +17,8 @@ typedef enum { READY, RUNNING, BLOCKING } taskState_t;
 typedef struct {
 	int (*function)();
 	
-	/**
-	 * Indicates for example if the task is running.
-	 */
-	uint8_t status;
+	unsigned int priority;
+	volatile taskState_t state;
 	
 	/**
 	 * Points to the next free memory on the stack.
@@ -39,8 +37,7 @@ typedef struct {
 	 */
 	uint8_t stack[STACK_SIZE];
 	
-	unsigned int priority;
-	taskState_t state;
+	
 } task_t;
 
 /**
@@ -55,5 +52,3 @@ void initTask(task_t *task);
  * task struct array.
  */
 int countTasks();
-
-task_t *getIdleTask();

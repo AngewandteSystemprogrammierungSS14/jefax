@@ -86,59 +86,67 @@
 					"sei							\n\t"	\
 );
 
-#define MS_TO_TIMER_PER(ms) (((unsigned long) ms) * 32000000UL / 256UL)
+#define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
+#define DISABLE_TIMER() TCC0.CTRLA = TC_CLKSEL_OFF_gc
+#define ENABLE_TIMER() TCC0.CTRLA = TIMER_PRESCALER
+#define MS_TO_TIMER_PER(ms) ((int) (((unsigned long) ms) * 32000000UL / 256UL))
 
-/**
- * The global, extern defined task list with all tasks to dispatch.
- */
+/* The global, extern defined task list with all tasks to dispatch. */
 extern task_t TASKS[];
 
-extern int (*idleTaskFunction) ();
-
 // Prototypes
-static void setTimer();
-
-/**
- * Which task is currently running:
- *
- * -1: Dispatchers idle task
- *  0: Task 0
- *  1: Task 1
- */
-int currentTaskNumber = -1;
+static void initTimer();
+static void init32MHzClock();
 
 uint8_t *main_stackpointer;
+task_t *defaultTask;
 
-void startDispatcher()
+void initDispatcher(task_t *p_defaultTask)
 {
+	defaultTask = p_defaultTask;
 	initLED();
-	enableInterrupts();
 	
-	initTask(getIdleTask());
+	init32MHzClock();
+	enableInterrupts();
+	initTimer();
+	
 	// Save the main context
 	SAVE_CONTEXT();
 	main_stackpointer = (uint8_t *) SP;
 	
-	// Switch to dispatcher idle task context
-	SP = (uint16_t) (getIdleTask()->stackpointer);
+	// Switch to dispatcher default task
+	SP = (uint16_t) (defaultTask->stackpointer);
 	
-	setTimer();
+	DISABLE_TIMER();
+	RESTORE_CONTEXT();
 	
-	// Start idle task
-	idleTaskFunction();
+	return;
+}
+
+static void init32MHzClock()
+{
+	//Oszillator auf 32Mhz stellen
+	OSC.CTRL |= OSC_RC32MEN_bm;
+	// Warten bis der Oszillator bereit ist
+	while(!(OSC.STATUS & OSC_RC32MRDY_bm));
+	//Schützt I/O Register, Interrupts werden ignoriert
+	CCP = CCP_IOREG_gc;
+	//aktiviert den internen Oszillator
+	CLK.CTRL = (CLK.CTRL & ~CLK_SCLKSEL_gm) | CLK_SCLKSEL_RC32M_gc;
 }
 
 /**
  * Sets the timer interrupt. At each interrupt the dispatcher changes
  * the running task. (Timer overflow IR is used).
  */
-static void setTimer()
+static void initTimer()
 {
 	// Set 16 bit timer
-	TCC0.CTRLA = TC_CLKSEL_DIV256_gc; // 256 prescaler -> 3900 / sec -> 65536 max.
-	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
+	TCC0.CTRLA = TIMER_PRESCALER; // 256 prescaler -> 3900 / sec -> 65536 max.
 	TCC0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
+	TCC0.PER = 10;
 	TCC0.CNT = 0x00;
+	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 }
 
 void setInterruptTime(unsigned int p_msec)
@@ -149,34 +157,25 @@ void setInterruptTime(unsigned int p_msec)
 	}
 }
 
+void dispatch(task_t *p_task)
+{
+	SP = (uint16_t) (p_task->stackpointer);
+	
+	ENABLE_TIMER();
+	RESTORE_CONTEXT();
+	
+	return;
+}
+
 ISR(TCC0_OVF_vect, ISR_NAKED)
 {
 	SAVE_CONTEXT();
 	
-	if (currentTaskNumber == -1) {
-		// Idle task
-		
-		// Save stackpointer
-		getIdleTask()->stackpointer = (uint8_t *) SP;
-		
-		// Begin with the tasks
-		currentTaskNumber = 0;
-	} else {
-		// Save stackpointer
-		TASKS[currentTaskNumber].stackpointer = (uint8_t *) SP;
-		
-		// TODO: Is this okay?
-		
-		// Switch to dispatcher idle task context
-		SP = (uint16_t) (getIdleTask()->stackpointer);
-		
-		// Got to next task: Switch between 0 and 1
-		currentTaskNumber = (~currentTaskNumber & 0b00000001);
-	}
+	// set stackpointer to default task
+	SP = (uint16_t) (defaultTask->stackpointer);
+	initTask(defaultTask);
 	
-	// Restore stackpointer
-	SP = (uint16_t) (TASKS[currentTaskNumber].stackpointer);
-	
+	DISABLE_TIMER();
 	RESTORE_CONTEXT();
 	reti();
 }

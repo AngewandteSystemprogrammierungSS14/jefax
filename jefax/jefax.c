@@ -1,5 +1,5 @@
 #include "task.h"
-#include "dispatcher.h"
+#include "scheduler.h"
 #include "user_counterTask.h"
 #include "task.h"
 #include "jefax_xmega128.h"
@@ -10,9 +10,9 @@
  * with 0 as the first entry.
  */
 task_t TASKS[] = {
-	{counterTask1, 0, 0, {0}},
-	{counterTask2, 0, 0, {0}},
-	{0, 0, 0, {0}}
+	{counterTask1, 1, READY, 0, {0}},
+	{counterTask2, 1, READY, 0, {0}},
+	{0, 0, READY, 0, {0}}
 };
 
 void jefax()
@@ -20,5 +20,5 @@ void jefax()
 	initTask(&TASKS[0]);
 	initTask(&TASKS[1]);
 	
-	startDispatcher();
+	initScheduler();
 }

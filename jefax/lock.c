@@ -4,93 +4,122 @@
  * Created: 01.05.2014 09:52:02
  *  Author: Fabian
  */ 
-
+#include "lock.h"
 #include <util/atomic.h>
 #include <stddef.h>
-
-#include "lock.h"
+#include "scheduler.h"
 
 void enqueueTask(struct taskQueue *p_queue, task_t* p_task);
 task_t* dequeueTask(struct taskQueue *p_queue);
 
+int initSignal(signal_t *p_signal)
+{
+	p_signal->queue.count = 0;
+	p_signal->queue.first = 0;
+	p_signal->queue.size = TASK_QUEUE_SIZE;
+	
+	return 0;
+}
+
+void waitSignal(signal_t *p_signal)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		enqueueTask(&(p_signal->queue), getRunningTask());
+		setTaskState(getRunningTask(), BLOCKING);
+	}
+}
+
+void signalOne(signal_t *p_signal)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		task_t *task = dequeueTask(&(p_signal->queue));
+		if(task != NULL)
+			setTaskState(task, READY);
+	}
+}
+
+void signalAll(signal_t *p_signal)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		task_t *task;
+		while(p_signal->queue.count > 0)
+		{
+			task = dequeueTask(&(p_signal->queue));
+			if(task != NULL)
+				setTaskState(task, READY);
+		}
+	}
+}
+
+int initSemaphore(semaphore_t *p_semaphore, unsigned int p_maxValue)
+{
+	int ret = initSignal(&(p_semaphore->signal));
+	if(ret != 0)
+		return ret;
+	
+	p_semaphore->value = 0;
+	p_semaphore->maxValue = p_maxValue;
+	
+	return ret;
+}
+
+void lockSemaphore(semaphore_t *p_semaphore)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		if(p_semaphore->value < p_semaphore->maxValue)
+			++p_semaphore->value;
+		else
+			waitSignal(&(p_semaphore->signal));
+	}
+}
+
+void unlockSemaphore(semaphore_t *p_semaphore)
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		--p_semaphore->value;
+		if(p_semaphore->value > p_semaphore->maxValue)
+			signalOne(&(p_semaphore->signal));
+	}
+}
+
 int initMutex(mutex_t *p_mutex)
 {
-	p_mutex->lock = 0;
-	p_mutex->queue.count = 0;
-	p_mutex->queue.first = 0;
-	p_mutex->queue.size = TASK_QUEUE_SIZE;
-	return 0;
+	return initSemaphore(&(p_mutex->lock), 1);
 }
 
 void lockMutex(mutex_t *p_mutex)
 {
-	uint8_t locked = 0;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		locked = p_mutex->lock;
-		if(locked)
-		{
-			//TODO enqueueTask(currentTask);
-			//TODO setTaskState(currentTask, blockingMode);
-		}
-	
-		p_mutex->lock = 1;
-	}
-	
-	if(locked)
-		;//TODO scheduleTask(currentTask);
+	lockSemaphore(&(p_mutex->lock));
 }
 
 void unlockMutex(mutex_t *p_mutex)
 {
-	task_t *task = NULL;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		task = dequeueTask(&(p_mutex->queue));
-	
-		//nobody is waiting for mutex anymore
-		if(task == NULL)
-			p_mutex->lock = 0;
-		else
-			;//TODO setTaskState(task, readyMode);
-	}
-	
-	if(task != NULL)
-		;//TODO scheduleTask(task)
+	unlockSemaphore(&(p_mutex->lock));
 }
 
 int initCondition(condition_t *p_cond)
 {
-	p_cond->queue.count = 0;
-	p_cond->queue.first = 0;
-	p_cond->queue.size = TASK_QUEUE_SIZE;
-	
-	return 0;
+	return initSignal(&(p_cond->signal));
 }
 
 void waitCondition(condition_t *p_cond, mutex_t *p_mutex)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		//TODO enqueueTask(&(p_cond->queue), currentTask);
 		unlockMutex(p_mutex);
-		//TODO setTaskState(currentTask, blockingMode);
+		waitSignal(&(p_cond->signal));
 	}
-	
-	//TODO schedule(currentTask);
-	
-	//if condition gets signaled, task resumes here
 	lockMutex(p_mutex);
 }
 
 void signalCondition(condition_t *p_cond)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		task_t *task = dequeueTask(&(p_cond->queue));
-		if(task != NULL)
-			;//TODO setTaskState(task, readyMode);
-	}
+	signalOne(&(p_cond->signal));
 }
 
 void enqueueTask(struct taskQueue *p_queue, task_t* p_task)

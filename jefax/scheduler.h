@@ -12,8 +12,8 @@
 typedef enum { RR_SCHEDULER } scheduler_t;
 
 void initScheduler();
-void setCurrentTaskState(taskState_t p_state);
 void setTaskState(task_t *p_task, taskState_t p_state);
-void schedule();
-task_t* getNextTask();
 void setScheduler(scheduler_t p_scheduler);
+
+task_t *getRunningTask();
+task_t *getSchedulerTask();

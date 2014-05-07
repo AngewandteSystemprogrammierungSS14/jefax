@@ -12,5 +12,7 @@
 /**
  * Starts the dispatchers idle task and sets the timer.
  */
-void startDispatcher();
+void initDispatcher(task_t *p_defaultTask);
 void setInterruptTime(unsigned int p_msec);
+
+void dispatch(task_t *p_task);
