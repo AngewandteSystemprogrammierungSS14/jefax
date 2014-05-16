@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-#define STACK_SIZE 100
+#define STACK_SIZE 300
 
 typedef enum { READY, RUNNING, BLOCKING } taskState_t;
 	

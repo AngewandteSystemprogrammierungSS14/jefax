@@ -26,7 +26,7 @@ typedef struct
 
 typedef struct  
 {
-	unsigned int value;
+	volatile unsigned int value;
 	unsigned int maxValue;
 	signal_t signal;
 } semaphore_t;

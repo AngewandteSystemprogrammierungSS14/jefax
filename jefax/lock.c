@@ -70,10 +70,15 @@ void lockSemaphore(semaphore_t *p_semaphore)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		if(p_semaphore->value < p_semaphore->maxValue)
-			++p_semaphore->value;
-		else
-			waitSignal(&(p_semaphore->signal));
+		int hasLock = 0;
+		while(!hasLock)
+		{
+			hasLock = p_semaphore->value < p_semaphore->maxValue;
+			if(hasLock)
+				++p_semaphore->value;
+			else
+				waitSignal(&(p_semaphore->signal));
+		}
 	}
 }
 
@@ -82,8 +87,7 @@ void unlockSemaphore(semaphore_t *p_semaphore)
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
 		--p_semaphore->value;
-		if(p_semaphore->value > p_semaphore->maxValue)
-			signalOne(&(p_semaphore->signal));
+		signalOne(&(p_semaphore->signal));
 	}
 }
 
@@ -126,7 +130,7 @@ void enqueueTask(struct taskQueue *p_queue, task_t* p_task)
 {
 	uint8_t index = (p_queue->first + p_queue->count) % p_queue->size;
 	p_queue->list[index] = p_task;
-	++p_queue->count;
+	++(p_queue->count);
 }
 
 task_t* dequeueTask(struct taskQueue *p_queue)
@@ -135,8 +139,8 @@ task_t* dequeueTask(struct taskQueue *p_queue)
 	if(p_queue->count > 0)
 	{
 		result = p_queue->list[p_queue->first];
-		--p_queue->count;
-		++p_queue->first;
+		--(p_queue->count);
+		++(p_queue->first);
 	}
 	
 	return result;

@@ -3,6 +3,7 @@
 #include "user_counterTask.h"
 #include "task.h"
 #include "jefax_xmega128.h"
+#include "scheduler_test.h"
 
 /**
  * The task list with all the tasks the dispatcher
@@ -10,15 +11,17 @@
  * with 0 as the first entry.
  */
 task_t TASKS[] = {
-	{counterTask1, 1, READY, 0, {0}},
-	{counterTask2, 1, READY, 0, {0}},
+	{schedTestTask4, 1, READY, 0, {0}},
+	{schedTestTask5, 1, READY, 0, {0}},
 	{0, 0, READY, 0, {0}}
 };
 
 void jefax()
 {	
-	initTask(&TASKS[0]);
-	initTask(&TASKS[1]);
+	initSchedTest();
+	int i;
+	for(i = 0; i < countTasks(); ++i)
+		initTask(&TASKS[i]);
 	
 	initScheduler();
 }

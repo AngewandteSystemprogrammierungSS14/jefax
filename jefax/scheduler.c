@@ -102,11 +102,9 @@ void setTaskState(task_t *p_task, taskState_t p_state)
 static void schedule()
 {
 	uint8_t state = SREG & 0x80;
-	sei();
-	
 	// create interrupt
 	TCC0.CNT = TCC0.PER - 1;
-		
+	
 	sei();
 	// wait to be exchanged
 	while(runningTask->state != RUNNING)
@@ -150,23 +148,23 @@ static void removeTask(struct taskList *p_tasks, int p_index)
 	assert(p_index < p_tasks->count);
 	
 	int i;
+	for(i = p_index; i < p_tasks->count - 1; ++i)
+		p_tasks->elements[i] = p_tasks->elements[i + 1];
 	
-	for(i = 0; i < p_tasks->count - 1; ++i)
-	p_tasks->elements[i] = p_tasks->elements[i + 1];
-	
-	--p_tasks->count;
+	--(p_tasks->count);
 }
 
 static void insertTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index)
 {
 	assert(p_tasks->count < p_tasks->size);
+	assert(p_tasks->count >= p_index);
 	
 	int i;
 	for(i = p_tasks->count; i > p_index; --i)
 		p_tasks->elements[i] = p_tasks->elements[i - 1];
 	
 	p_tasks->elements[p_index] = p_task;
-	++p_tasks->count;
+	++(p_tasks->count);
 }
 
 static void addTask(struct taskList *p_tasks, task_t *p_task)
@@ -174,7 +172,7 @@ static void addTask(struct taskList *p_tasks, task_t *p_task)
 	assert(p_tasks->count < p_tasks->size);
 	
 	p_tasks->elements[p_tasks->count] = p_task;
-	++p_tasks->count;
+	++(p_tasks->count);
 }
 
 task_t *getRunningTask()
@@ -226,7 +224,7 @@ static task_t* getNextTaskRR()
 	{
 		// get next task with highest priority
 		result = readyTasks.elements[readyTasks.count - 1];
-		--readyTasks.count;
+		--(readyTasks.count);
 		
 		if(runningTask->state == RUNNING)
 			runningTask->state = READY;
@@ -256,11 +254,9 @@ static void updateBlockingTasksRR()
 
 static void insertRRTask(struct taskList *p_tasks, task_t *p_task)
 {
-	int index;
-	
 	assert(p_tasks->count < p_tasks->size);
 	
-	index = getRRIndex(p_tasks, p_task);
+	int index = getRRIndex(p_tasks, p_task);
 	
 	insertTaskAt(p_tasks, p_task, index);
 }
@@ -272,11 +268,11 @@ static int getRRIndex(struct taskList *p_tasks, task_t *p_task)
 	if(p_tasks->count == 0)
 		return 0;
 		
-	result = p_tasks->count / 2;
+	/*result = p_tasks->count / 2;
 	if(p_tasks->elements[result]->priority <= p_task->priority)
-		result = 0;
-	
-	while(p_tasks->elements[result]->priority > p_task->priority)
+		result = 0;*/
+	result = 0;
+	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
 		++result;
 		
 	return result;
