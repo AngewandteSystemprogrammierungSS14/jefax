@@ -8,54 +8,45 @@
 #include "scheduler.h"
 #include "dispatcher.h"
 #include <stdlib.h>
-#include <assert.h>
 #include <util/atomic.h>
 
-#define DEF_TASK_LIST_SIZE 20
-
-struct taskList
-{
-	task_t *elements[DEF_TASK_LIST_SIZE];
-	int size;
-	int count;
-};
+/* prototypes */
+static int initSchedulerTasks();
+static int initTaskLists();
+static int schedule();
+static task_t *selectNextTask();
+static void forceContextSwitch();
+static int idleTaskFunction();
 
 extern task_t TASKS[];
-static task_t *runningTask;
-static struct taskList readyTasks;
-static struct taskList blockingTasks;
-static scheduler_t scheduler;
 
-/* prototypes */
-static void schedule();
-static void setRRScheduler();
-static int scheduleTask();
-static void selectNextTask();
-static task_t* getNextTaskRR();
-static int getRRIndex(struct taskList *p_tasks, task_t *p_task);
-static void updateBlockingTasksRR();
-static void removeTask(struct taskList *p_tasks, int p_index);
-static void insertRRTask(struct taskList *p_tasks, task_t *p_task);
-static void insertTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index);
-static void addTask(struct taskList *p_tasks, task_t *p_task);
-static int idleTaskFunction();
+static task_t *runningTask;
+static taskList_t readyList;
+static taskList_t blockingList;
+static scheduler_t *scheduler;
 
 static task_t idleTask;
 static task_t schedulerTask;
 
-/* callbacks */
-task_t* (*getNextTaskCB)();
-
-void initScheduler()
+int initScheduler(scheduler_t *p_defaultScheduler)
 {
-	setScheduler(RR_SCHEDULER);
-	readyTasks.size = DEF_TASK_LIST_SIZE;
-	readyTasks.count = 0;
+	int ret = initSchedulerTasks();
+	if(ret)
+		return ret;
 	
-	blockingTasks.size = DEF_TASK_LIST_SIZE;
-	blockingTasks.count = 0;
+	ret = initTaskLists();
+	if(ret)
+		return ret;
+		
+	setScheduler(p_defaultScheduler);
+	initDispatcher(&schedulerTask);
 	
-	schedulerTask.function = scheduleTask;
+	return 0;
+}
+
+static int initSchedulerTasks()
+{
+	schedulerTask.function = schedule;
 	schedulerTask.priority = 255;
 	schedulerTask.state = READY;
 	schedulerTask.stackpointer = 0;
@@ -68,10 +59,19 @@ void initScheduler()
 	initTask(&schedulerTask);
 	initTask(&idleTask);
 	
-	//add tasks to scheduler
-	int taskCount = countTasks();
+	return 0;
+}
+
+static int initTaskLists()
+{
+	if(initTaskList(&readyList))
+		return -1;
+	if(initTaskList(&blockingList))
+		return -1;
 	
-	assert(taskCount > 0);
+	int taskCount = countTasks();
+	if(taskCount <= 0)
+		return -1;
 	
 	runningTask = &(TASKS[0]);
 	runningTask->state = RUNNING;
@@ -80,10 +80,29 @@ void initScheduler()
 	for(i = 1; i < taskCount; ++i)
 	{
 		TASKS[i].state = READY;
-		insertRRTask(&readyTasks, &TASKS[i]); 
+		pushTaskBack(&readyList, &TASKS[i]);
 	}
 	
-	initDispatcher(&schedulerTask);
+	return 0;
+}
+
+static int schedule()
+{
+	task_t *task = selectNextTask();
+	dispatch(task);
+	return 0;
+}
+
+static task_t *selectNextTask()
+{
+	task_t *result;
+	runningTask = scheduler->getNextTask();
+	if(runningTask == NULL)
+		result = &idleTask;
+	else
+		result = runningTask;
+	result->state = RUNNING;
+	return result;
 }
 
 void setTaskState(task_t *p_task, taskState_t p_state)
@@ -95,94 +114,47 @@ void setTaskState(task_t *p_task, taskState_t p_state)
 		if(p_task->state == READY && p_task->priority < runningTask->priority)
 			runningTask->state = READY;
 		if(runningTask->state != RUNNING)
-			schedule();
+			forceContextSwitch();
 	}		
 }
 
-static void schedule()
+static void forceContextSwitch()
 {
 	uint8_t state = SREG & 0x80;
 	// create interrupt
+	sei();
+	
 	TCC0.CNT = TCC0.PER - 1;
 	
-	sei();
 	// wait to be exchanged
-	while(runningTask->state != RUNNING)
+	while(getTaskState(runningTask) != RUNNING)
 	{ }
 	
 	if(!state)
 		cli();
 }
 
-int scheduleTask()
+taskState_t getTaskState(const task_t *p_task)
 {
-	selectNextTask();
-	dispatch(runningTask);
-	return 0;
+	taskState_t result;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		result = p_task->state;
+	}
+	return result;
 }
 
-void selectNextTask()
-{
-	runningTask = getNextTaskCB();
-	runningTask->state = RUNNING;
-}
-
-void setScheduler(scheduler_t p_scheduler)
+void setScheduler(scheduler_t *p_scheduler)
 {
 	scheduler = p_scheduler;
-	switch(scheduler)
-	{
-		case RR_SCHEDULER:
-			setRRScheduler();
-			break;
-	}
-}
-
-static void setRRScheduler()
-{
-	getNextTaskCB = getNextTaskRR;
-}
-
-static void removeTask(struct taskList *p_tasks, int p_index)
-{
-	assert(p_index < p_tasks->count);
-	
-	int i;
-	for(i = p_index; i < p_tasks->count - 1; ++i)
-		p_tasks->elements[i] = p_tasks->elements[i + 1];
-	
-	--(p_tasks->count);
-}
-
-static void insertTaskAt(struct taskList *p_tasks, task_t *p_task, int p_index)
-{
-	assert(p_tasks->count < p_tasks->size);
-	assert(p_tasks->count >= p_index);
-	
-	int i;
-	for(i = p_tasks->count; i > p_index; --i)
-		p_tasks->elements[i] = p_tasks->elements[i - 1];
-	
-	p_tasks->elements[p_index] = p_task;
-	++(p_tasks->count);
-}
-
-static void addTask(struct taskList *p_tasks, task_t *p_task)
-{
-	assert(p_tasks->count < p_tasks->size);
-	
-	p_tasks->elements[p_tasks->count] = p_task;
-	++(p_tasks->count);
+	scheduler->readyList = &readyList;
+	scheduler->blockingList = &blockingList;
+	scheduler->init();
 }
 
 task_t *getRunningTask()
 {
 	return runningTask;
-}
-
-task_t *getSchedulerTask()
-{
-	return &schedulerTask;
 }
 
 static int idleTaskFunction()
@@ -197,84 +169,5 @@ static int idleTaskFunction()
 	}
 	
 	return 0;
-}
-
-/* #########################
-   # Round Robin Scheduler #
-   ######################### */
-
-static task_t* getNextTaskRR()
-{
-	task_t *result;
-	
-	updateBlockingTasksRR();
-	
-	//ready list is empty
-	if(readyTasks.count <= 0)
-	{
-		if(runningTask->state == BLOCKING)
-			result = &idleTask;
-		else
-		{
-			runningTask->state = RUNNING;
-			result = runningTask;
-		}
-	}
-	else
-	{
-		// get next task with highest priority
-		result = readyTasks.elements[readyTasks.count - 1];
-		--(readyTasks.count);
-		
-		if(runningTask->state == RUNNING)
-			runningTask->state = READY;
-	}
-		
-	//put runningTask in correct List
-	if(runningTask->state == READY)
-		insertRRTask(&readyTasks, runningTask);
-	else if(runningTask->state == BLOCKING)
-		addTask(&blockingTasks, runningTask);
-	
-	return result;
-}
-
-static void updateBlockingTasksRR()
-{
-	int i;
-	for(i = 0; i < blockingTasks.count; ++i)
-	{
-		if(blockingTasks.elements[i]->state != BLOCKING)
-		{
-			insertRRTask(&readyTasks, blockingTasks.elements[i]);
-			removeTask(&blockingTasks, i);
-		}
-	}
-}
-
-static void insertRRTask(struct taskList *p_tasks, task_t *p_task)
-{
-	assert(p_tasks->count < p_tasks->size);
-	
-	int index = getRRIndex(p_tasks, p_task);
-	
-	insertTaskAt(p_tasks, p_task, index);
-}
-
-static int getRRIndex(struct taskList *p_tasks, task_t *p_task)
-{
-	int result;
-	
-	if(p_tasks->count == 0)
-		return 0;
-		
-	/*result = p_tasks->count / 2;
-	if(p_tasks->elements[result]->priority <= p_task->priority)
-		result = 0;*/
-	result = 0;
-	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
-		++result;
-		
-	return result;
 }
 

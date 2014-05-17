@@ -99,11 +99,11 @@ static void initTimer();
 static void init32MHzClock();
 
 uint8_t *main_stackpointer;
-task_t *defaultTask;
+static task_t *schedulerTask;
 
-void initDispatcher(task_t *p_defaultTask)
+void initDispatcher(task_t *p_scheduleTask)
 {
-	defaultTask = p_defaultTask;
+	schedulerTask = p_scheduleTask;
 	initLED();
 	
 	init32MHzClock();
@@ -115,7 +115,7 @@ void initDispatcher(task_t *p_defaultTask)
 	main_stackpointer = (uint8_t *) SP;
 	
 	// Switch to dispatcher default task
-	SP = (uint16_t) (defaultTask->stackpointer);
+	SP = (uint16_t) (schedulerTask->stackpointer);
 	
 	DISABLE_TIMER();
 	RESTORE_CONTEXT();
@@ -163,8 +163,7 @@ void dispatch(task_t *p_task)
 	
 	ENABLE_TIMER();
 	RESTORE_CONTEXT();
-	
-	return;
+	reti();
 }
 
 ISR(TCC0_OVF_vect, ISR_NAKED)
@@ -172,8 +171,8 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 	SAVE_CONTEXT();
 	
 	// set stackpointer to default task
-	SP = (uint16_t) (defaultTask->stackpointer);
-	initTask(defaultTask);
+	initTask(schedulerTask);
+	SP = (uint16_t) (schedulerTask->stackpointer);
 	
 	DISABLE_TIMER();
 	RESTORE_CONTEXT();

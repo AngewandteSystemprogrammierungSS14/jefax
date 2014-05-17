@@ -7,27 +7,17 @@
 
 #pragma once
 
-#include "task.h"
-
-#define TASK_QUEUE_SIZE 10
-
-struct taskQueue
-{
-	task_t *list[TASK_QUEUE_SIZE];
-	uint8_t first;
-	uint8_t count;
-	uint8_t size;
-};
+#include "tasklist.h"
 
 typedef struct  
 {
-	struct taskQueue queue;
+	taskList_t queue;
 } signal_t;
 
 typedef struct  
 {
 	volatile unsigned int value;
-	unsigned int maxValue;
+	volatile unsigned int maxValue;
 	signal_t signal;
 } semaphore_t;
 

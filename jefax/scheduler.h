@@ -7,13 +7,21 @@
 
 #pragma once
 
-#include "task.h"
+#include "tasklist.h"
 
-typedef enum { RR_SCHEDULER } scheduler_t;
+typedef struct  
+{
+	void (*init)();
+	task_t* (*getNextTask)();
+	taskList_t *readyList;
+	taskList_t *blockingList;
+} scheduler_t;
 
-void initScheduler();
+int initScheduler(scheduler_t *p_defaultScheduler);
 void setTaskState(task_t *p_task, taskState_t p_state);
-void setScheduler(scheduler_t p_scheduler);
+taskState_t getTaskState(const task_t *p_task);
+void setScheduler(scheduler_t *p_scheduler);
+
+
 
 task_t *getRunningTask();
-task_t *getSchedulerTask();

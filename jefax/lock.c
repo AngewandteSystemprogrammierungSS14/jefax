@@ -5,27 +5,20 @@
  *  Author: Fabian
  */ 
 #include "lock.h"
+#include "scheduler.h"
 #include <util/atomic.h>
 #include <stddef.h>
-#include "scheduler.h"
-
-void enqueueTask(struct taskQueue *p_queue, task_t* p_task);
-task_t* dequeueTask(struct taskQueue *p_queue);
 
 int initSignal(signal_t *p_signal)
 {
-	p_signal->queue.count = 0;
-	p_signal->queue.first = 0;
-	p_signal->queue.size = TASK_QUEUE_SIZE;
-	
-	return 0;
+	return initTaskList(&(p_signal->queue));
 }
 
 void waitSignal(signal_t *p_signal)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		enqueueTask(&(p_signal->queue), getRunningTask());
+		pushTaskBack(&(p_signal->queue), getRunningTask());
 		setTaskState(getRunningTask(), BLOCKING);
 	}
 }
@@ -34,7 +27,7 @@ void signalOne(signal_t *p_signal)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		task_t *task = dequeueTask(&(p_signal->queue));
+		task_t *task = popTaskFront(&(p_signal->queue));
 		if(task != NULL)
 			setTaskState(task, READY);
 	}
@@ -47,7 +40,7 @@ void signalAll(signal_t *p_signal)
 		task_t *task;
 		while(p_signal->queue.count > 0)
 		{
-			task = dequeueTask(&(p_signal->queue));
+			task = popTaskFront(&(p_signal->queue));
 			if(task != NULL)
 				setTaskState(task, READY);
 		}
@@ -70,15 +63,9 @@ void lockSemaphore(semaphore_t *p_semaphore)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		int hasLock = 0;
-		while(!hasLock)
-		{
-			hasLock = p_semaphore->value < p_semaphore->maxValue;
-			if(hasLock)
-				++p_semaphore->value;
-			else
-				waitSignal(&(p_semaphore->signal));
-		}
+		p_semaphore->value += 1;
+		if(p_semaphore->value > p_semaphore->maxValue)
+			waitSignal(&(p_semaphore->signal));
 	}
 }
 
@@ -86,7 +73,7 @@ void unlockSemaphore(semaphore_t *p_semaphore)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		--p_semaphore->value;
+		p_semaphore->value -= 1;
 		signalOne(&(p_semaphore->signal));
 	}
 }
@@ -124,24 +111,4 @@ void waitCondition(condition_t *p_cond, mutex_t *p_mutex)
 void signalCondition(condition_t *p_cond)
 {
 	signalOne(&(p_cond->signal));
-}
-
-void enqueueTask(struct taskQueue *p_queue, task_t* p_task)
-{
-	uint8_t index = (p_queue->first + p_queue->count) % p_queue->size;
-	p_queue->list[index] = p_task;
-	++(p_queue->count);
-}
-
-task_t* dequeueTask(struct taskQueue *p_queue)
-{
-	task_t *result = NULL;
-	if(p_queue->count > 0)
-	{
-		result = p_queue->list[p_queue->first];
-		--(p_queue->count);
-		++(p_queue->first);
-	}
-	
-	return result;
 }

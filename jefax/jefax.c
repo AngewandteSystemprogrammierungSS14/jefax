@@ -1,5 +1,5 @@
 #include "task.h"
-#include "scheduler.h"
+#include "schedulerRR.h"
 #include "user_counterTask.h"
 #include "task.h"
 #include "jefax_xmega128.h"
@@ -23,5 +23,5 @@ void jefax()
 	for(i = 0; i < countTasks(); ++i)
 		initTask(&TASKS[i]);
 	
-	initScheduler();
+	initScheduler(getRRScheduler());
 }
