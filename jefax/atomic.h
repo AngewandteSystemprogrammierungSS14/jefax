@@ -7,7 +7,12 @@
 
 #pragma once
 
+#include <stdint.h>
+
 typedef int atomic_t;
+
+uint8_t enterAtomicBlock();
+void exitAtomicBlock(const uint8_t p_state);
 
 void atomicSet(atomic_t *p_atomic, const int p_value);
 int atomicRead(atomic_t *p_atomic);

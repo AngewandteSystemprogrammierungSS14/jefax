@@ -7,8 +7,10 @@
 
 #include "scheduler.h"
 #include "dispatcher.h"
+#include "atomic.h"
 #include <stdlib.h>
-#include <util/atomic.h>
+#include <avr/interrupt.h>
+
 
 /* prototypes */
 static int initSchedulerTasks();
@@ -107,15 +109,16 @@ static task_t *selectNextTask()
 
 void setTaskState(task_t *p_task, taskState_t p_state)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		p_task->state = p_state;
-		//check if high prior task got ready
-		if(p_task->state == READY && p_task->priority < runningTask->priority)
-			runningTask->state = READY;
-		if(runningTask->state != RUNNING)
-			forceContextSwitch();
-	}		
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	p_task->state = p_state;
+	//check if high prior task got ready
+	if(p_task->state == READY && p_task->priority < runningTask->priority)
+		runningTask->state = READY;
+	if(runningTask->state != RUNNING)
+		forceContextSwitch();
+		
+	exitAtomicBlock(irEnabled);	
 }
 
 static void forceContextSwitch()
@@ -137,10 +140,11 @@ static void forceContextSwitch()
 taskState_t getTaskState(const task_t *p_task)
 {
 	taskState_t result;
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		result = p_task->state;
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	result = p_task->state;
+		
+	exitAtomicBlock(irEnabled);
 	return result;
 }
 

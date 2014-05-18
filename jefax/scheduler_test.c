@@ -13,27 +13,27 @@
 #define MAX_Y 1024
 #define MAX_THETA 360
 
-static mutex_t posMutex;
-static condition_t posUpdate;
+DECLARE_MUTEX(posMutex);
+DECLARE_CONDITION(posUpdate);
 static int x = 0;
 static int y = 0;
 static int theta = 0;
 
-static mutex_t velMutex;
+DECLARE_MUTEX(velMutex);
 static int x_vel = 1;
 static int y_vel = 2;
 static int ang_vel = 6;
 
 static int resultGlob;
 
-static mutex_t simpleTestMutex;
+DECLARE_MUTEX(simpleTestMutex);
 
 void initSchedTest()
 {
-	initMutex(&posMutex);
+	/*initMutex(&posMutex);
 	initMutex(&velMutex);
 	initMutex(&simpleTestMutex);
-	initCondition(&posUpdate);
+	initCondition(&posUpdate);*/
 }
 
 int schedTestTask1()

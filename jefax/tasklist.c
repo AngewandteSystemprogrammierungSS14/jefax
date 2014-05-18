@@ -8,11 +8,6 @@
 #include "tasklist.h"
 #include "stddef.h"
 
-static void sortPriorityR(taskList_t *p_list, const int p_front, const int p_back, taskList_t *p_helperList);
-static void mergePriority(taskList_t *p_a, const int a_front, const int a_back,
-						  taskList_t *p_b, const int b_front, const int b_back,
-						  taskList_t *p_c, const int c_front);
-
 int initTaskList(taskList_t *p_list)
 {
 	p_list->count = 0;
@@ -99,67 +94,23 @@ int containsTask(taskList_t *p_list, task_t *p_task)
 
 void sortPriority(taskList_t *p_list)
 {
-	taskList_t helperList;
-	sortPriorityR(p_list, 0, p_list->count - 1, &helperList);
-}
+	int i, j, changed;
+	task_t *tmp;
+	for(i = p_list->count - 1; i >= 0; --i)
+	{
+		changed = 0;
+		for(j = 0; j < i; ++j)
+		{
+			if (p_list->elements[j] < p_list->elements[j+1])
+			{
+				tmp = p_list->elements[j];
+				p_list->elements[j] = p_list->elements[j+1];
+				p_list->elements[j+1] = tmp;
+				changed = 1;
+			}
 
-static void sortPriorityR(taskList_t *p_list, const int p_front, const int p_back, taskList_t *p_helperList)
-{
-	if(p_back > p_front)
-	{
-		int i;
-		int mid = (p_back + p_front) / 2;
-		
-		sortPriorityR(p_list, p_front, mid, p_helperList);
-		sortPriorityR(p_list, mid + 1, p_back, p_helperList);
-		
-		mergePriority(p_list, p_front, mid, p_list, mid + 1, p_back, p_helperList, p_front);
-		
-		for(i = 0; i < p_list->count; ++i)
-			p_list->elements[i] = p_helperList->elements[i];
-	}
-}
-
-static void mergePriority(taskList_t *p_a, const int a_front, const int a_back,
-						  taskList_t *p_b, const int b_front, const int b_back,
-						  taskList_t *p_c, const int c_front)
-{
-	int i = a_front;
-	int j = b_front;
-	int k = c_front;
-	
-	while (i <= a_back && j <= b_back)
-	{
-		if (p_a->elements[i]->priority >= p_b->elements[j]->priority)
-		{
-			p_c->elements[k] = p_a->elements[i];
-			++k;
-			++i;
 		}
-		else
-		{
-			p_c->elements[k] = p_b->elements[j];
-			++k;
-			++j;
-		}
-	}
-			
-	if (j == b_back + 1)
-	{
-		while (i <= a_back)
-		{
-			p_c->elements[k] = p_a->elements[i];
-			++k;
-			++i;
-		}
-	}
-	else 
-	{
-		while (j <= b_back)
-		{
-			p_c->elements[k] = p_b->elements[j];
-			++j;
-			++k;
-		}
+		if(!changed)
+			break;
 	}
 }

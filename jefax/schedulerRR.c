@@ -23,7 +23,7 @@ scheduler_t *getRRScheduler()
 
 static void initSchedulerRR()
 {
-	//sortPriority(schedulerRR.readyList);
+	sortPriority(schedulerRR.readyList);
 }
 
 static task_t* getNextTaskRR()
@@ -63,7 +63,7 @@ static task_t* getNextTaskRR()
 
 static void readyUpBlockingTasksRR()
 {
-	int i;
+	volatile int i;
 	for(i = 0; i < schedulerRR.blockingList->count; ++i)
 	{
 		if(schedulerRR.blockingList->elements[i]->state != BLOCKING)
@@ -87,9 +87,10 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 	if(p_tasks->count == 0)
 		return 0;
 		
-	result = p_tasks->count / 2;
+	/*result = p_tasks->count / 2;
 	if(p_tasks->elements[result]->priority <= p_task->priority)
-		result = 0;
+		result = 0;*/
+	
 	result = 0;
 	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
 		++result;

@@ -1,6 +1,7 @@
 #include "dispatcher.h"
+#include "atomic.h"
+#include "scheduler.h"
 #include <avr/interrupt.h>
-#include <util/atomic.h>
 
 /**
  * Disables interrupts and saves the working registers and the sreg on the stack.
@@ -42,7 +43,7 @@
 					"in		r0, __SREG__			\n\t"	\
 					"push	r0						\n\t"	\
 					"clr	r1						\n\t"	\
-);
+)
 
 /**
  * Restores the working registers and the sreg from the stack and
@@ -83,8 +84,8 @@
 					"pop	r2						\n\t"	\
 					"pop	r1						\n\t"	\
 					"pop	r0						\n\t"	\
-					"sei							\n\t"	\
-);
+					"sei							\n\t"   \
+)
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 #define DISABLE_TIMER() TCC0.CTRLA = TC_CLKSEL_OFF_gc
@@ -119,7 +120,7 @@ void initDispatcher(task_t *p_scheduleTask)
 	
 	DISABLE_TIMER();
 	RESTORE_CONTEXT();
-	
+
 	return;
 }
 
@@ -151,10 +152,9 @@ static void initTimer()
 
 void setInterruptTime(unsigned int p_msec)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		TCC0.PER = MS_TO_TIMER_PER(p_msec); // Top-Value (period)
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	TCC0.PER = MS_TO_TIMER_PER(p_msec); // Top-Value (period)
+	exitAtomicBlock(irEnabled);
 }
 
 void dispatch(task_t *p_task)
@@ -163,12 +163,13 @@ void dispatch(task_t *p_task)
 	
 	ENABLE_TIMER();
 	RESTORE_CONTEXT();
-	reti();
+	return;
 }
 
 ISR(TCC0_OVF_vect, ISR_NAKED)
 {
 	SAVE_CONTEXT();
+	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
 	// set stackpointer to default task
 	initTask(schedulerTask);

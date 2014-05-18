@@ -6,7 +6,7 @@
  */ 
 #include "lock.h"
 #include "scheduler.h"
-#include <util/atomic.h>
+#include "atomic.h"
 #include <stddef.h>
 
 int initSignal(signal_t *p_signal)
@@ -16,35 +16,38 @@ int initSignal(signal_t *p_signal)
 
 void waitSignal(signal_t *p_signal)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		pushTaskBack(&(p_signal->queue), getRunningTask());
-		setTaskState(getRunningTask(), BLOCKING);
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	pushTaskBack(&(p_signal->queue), getRunningTask());
+	setTaskState(getRunningTask(), BLOCKING);
+	
+	exitAtomicBlock(irEnabled);
 }
 
 void signalOne(signal_t *p_signal)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		task_t *task = popTaskFront(&(p_signal->queue));
-		if(task != NULL)
-			setTaskState(task, READY);
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	task_t *task = popTaskFront(&(p_signal->queue));
+	if(task != NULL)
+		setTaskState(task, READY);
+			
+	exitAtomicBlock(irEnabled);
 }
 
 void signalAll(signal_t *p_signal)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	task_t *task;
+	while(p_signal->queue.count > 0)
 	{
-		task_t *task;
-		while(p_signal->queue.count > 0)
-		{
-			task = popTaskFront(&(p_signal->queue));
-			if(task != NULL)
-				setTaskState(task, READY);
-		}
+		task = popTaskFront(&(p_signal->queue));
+		if(task != NULL)
+			setTaskState(task, READY);
 	}
+	
+	exitAtomicBlock(irEnabled);
 }
 
 int initSemaphore(semaphore_t *p_semaphore, unsigned int p_maxValue)
@@ -61,21 +64,23 @@ int initSemaphore(semaphore_t *p_semaphore, unsigned int p_maxValue)
 
 void lockSemaphore(semaphore_t *p_semaphore)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		p_semaphore->value += 1;
-		if(p_semaphore->value > p_semaphore->maxValue)
-			waitSignal(&(p_semaphore->signal));
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	p_semaphore->value += 1;
+	if(p_semaphore->value > p_semaphore->maxValue)
+		waitSignal(&(p_semaphore->signal));
+		
+	exitAtomicBlock(irEnabled);
 }
 
 void unlockSemaphore(semaphore_t *p_semaphore)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		p_semaphore->value -= 1;
-		signalOne(&(p_semaphore->signal));
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	p_semaphore->value -= 1;
+	signalOne(&(p_semaphore->signal));
+		
+	exitAtomicBlock(irEnabled);
 }
 
 int initMutex(mutex_t *p_mutex)
@@ -100,11 +105,12 @@ int initCondition(condition_t *p_cond)
 
 void waitCondition(condition_t *p_cond, mutex_t *p_mutex)
 {
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		unlockMutex(p_mutex);
-		waitSignal(&(p_cond->signal));
-	}
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	unlockMutex(p_mutex);
+	waitSignal(&(p_cond->signal));
+		
+	exitAtomicBlock(irEnabled);
 	lockMutex(p_mutex);
 }
 
