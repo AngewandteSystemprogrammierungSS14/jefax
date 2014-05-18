@@ -101,7 +101,7 @@ void sortPriority(taskList_t *p_list)
 		changed = 0;
 		for(j = 0; j < i; ++j)
 		{
-			if (p_list->elements[j] < p_list->elements[j+1])
+			if (p_list->elements[j]->priority < p_list->elements[j+1]->priority)
 			{
 				tmp = p_list->elements[j];
 				p_list->elements[j] = p_list->elements[j+1];
