@@ -18,7 +18,6 @@ task_t TASKS[] = {
 
 void jefax()
 {	
-	initSchedTest();
 	int i;
 	for(i = 0; i < countTasks(); ++i)
 		initTask(&TASKS[i]);

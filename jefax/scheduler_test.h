@@ -7,7 +7,6 @@
 
 #pragma once
 
-void initSchedTest();
 int schedTestTask1();
 int schedTestTask2();
 int schedTestTask3();

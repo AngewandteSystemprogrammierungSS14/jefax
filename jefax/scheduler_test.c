@@ -28,14 +28,6 @@ static int resultGlob;
 
 DECLARE_MUTEX(simpleTestMutex);
 
-void initSchedTest()
-{
-	/*initMutex(&posMutex);
-	initMutex(&velMutex);
-	initMutex(&simpleTestMutex);
-	initCondition(&posUpdate);*/
-}
-
 int schedTestTask1()
 {
 	while(1)
