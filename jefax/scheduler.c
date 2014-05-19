@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include "dispatcher.h"
 #include "atomic.h"
+#include "timer.h"
 #include <stdlib.h>
 #include <avr/interrupt.h>
 
@@ -17,6 +18,7 @@ static int initSchedulerTasks();
 static int initTaskLists();
 static int schedule();
 static task_t *selectNextTask();
+static void sleepTimerCallback(void *arg);
 static void forceContextSwitch();
 static int idleTaskFunction();
 
@@ -37,6 +39,10 @@ int initScheduler(scheduler_t *p_defaultScheduler)
 		return ret;
 	
 	ret = initTaskLists();
+	if(ret)
+		return ret;
+		
+	ret = initTimerSystem();
 	if(ret)
 		return ret;
 		
@@ -105,6 +111,29 @@ static task_t *selectNextTask()
 		result = runningTask;
 	result->state = RUNNING;
 	return result;
+}
+
+void yield()
+{
+	setTaskState(runningTask, READY);
+}
+
+void sleep(const int p_ms)
+{
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	timer_t timer;
+	initTimer(&timer, p_ms, sleepTimerCallback, getRunningTask());
+	addTimer(timer);
+	setTaskState(getRunningTask(), BLOCKING);
+	
+	exitAtomicBlock(irEnabled);
+}
+
+static void sleepTimerCallback(void *arg)
+{
+	task_t *task = (task_t*) arg;
+	setTaskState(task, READY);
 }
 
 void setTaskState(task_t *p_task, taskState_t p_state)

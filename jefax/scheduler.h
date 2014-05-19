@@ -18,10 +18,13 @@ typedef struct
 } scheduler_t;
 
 int initScheduler(scheduler_t *p_defaultScheduler);
+void yield();
+void sleep(const int p_ms);
 void setTaskState(task_t *p_task, taskState_t p_state);
 taskState_t getTaskState(const task_t *p_task);
 void setScheduler(scheduler_t *p_scheduler);
 
-
-
 task_t *getRunningTask();
+
+
+

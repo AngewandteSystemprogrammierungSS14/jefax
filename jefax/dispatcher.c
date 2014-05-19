@@ -90,7 +90,8 @@
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 #define DISABLE_TIMER() TCC0.CTRLA = TC_CLKSEL_OFF_gc
 #define ENABLE_TIMER() TCC0.CTRLA = TIMER_PRESCALER
-#define MS_TO_TIMER_PER(ms) ((int) (((unsigned long) ms) * 32000000UL / 256UL))
+#define MS_TO_TIMER_PER(ms) ((int) (((unsigned long) ms) * 32000000000UL / 256UL))
+#define TIMER_PER_TO_MS(per) ((int) (((unsigned long) per) * 256UL / 32000000000UL))
 
 /* The global, extern defined task list with all tasks to dispatch. */
 extern task_t TASKS[];

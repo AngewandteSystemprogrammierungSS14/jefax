@@ -12,3 +12,4 @@ int schedTestTask2();
 int schedTestTask3();
 int schedTestTask4();
 int schedTestTask5();
+int schedTestTask6();

@@ -7,10 +7,11 @@
 
 #include "lock.h"
 #include "scheduler.h"
+#include <math.h>
 
 #define TIME_STEP 10
-#define MAX_X 1024
-#define MAX_Y 1024
+#define MAX_X 50
+#define MAX_Y 50
 #define MAX_THETA 360
 
 DECLARE_MUTEX(posMutex);
@@ -26,7 +27,11 @@ static int ang_vel = 6;
 
 static int resultGlob;
 
+DECLARE_SIGNAL(measureSignal);
+
 DECLARE_MUTEX(simpleTestMutex);
+static int measureDistance;
+static int field[MAX_X][MAX_Y];
 
 int schedTestTask1()
 {
@@ -71,11 +76,30 @@ int schedTestTask3()
 {
 	while(1)
 	{
-		
+		//sleep(100);
+		measureDistance = 10;
+		signalOne(&measureSignal);
 	}
 }
 
 int schedTestTask4()
+{
+	int dx, dy;
+	while(1)
+	{
+		waitSignal(&measureSignal);
+		lockMutex(&posMutex);
+		
+		dx = cos(theta) * measureDistance;
+		dy = sin(theta) * measureDistance;
+		
+		field[(x + dx) % MAX_X][(y + dy) % MAX_Y] += 1;
+		
+		unlockMutex(&posMutex);
+	}
+}
+
+int schedTestTask5()
 {
 	volatile int tmp;
 	while(1)
@@ -83,14 +107,14 @@ int schedTestTask4()
 		lockMutex(&simpleTestMutex);
 		
 		tmp = resultGlob;
-		//yield
-		setTaskState(getRunningTask(), READY);
+		
+		yield();
 		
 		unlockMutex(&simpleTestMutex);
 	}
 }
 
-int schedTestTask5()
+int schedTestTask6()
 {
 	int i, result;
 	

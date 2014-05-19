@@ -11,8 +11,8 @@
  * with 0 as the first entry.
  */
 task_t TASKS[] = {
-	{schedTestTask4, 1, READY, 0, {0}},
 	{schedTestTask5, 1, READY, 0, {0}},
+	{schedTestTask6, 1, READY, 0, {0}},
 	{0, 0, READY, 0, {0}}
 };
 
