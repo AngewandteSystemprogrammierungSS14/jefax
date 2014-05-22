@@ -49,6 +49,8 @@ int schedTestTask1()
 		unlockMutex(&posMutex);
 		
 		signalCondition(&posUpdate);
+		
+		yield();
 	}
 }
 
@@ -76,7 +78,7 @@ int schedTestTask3()
 {
 	while(1)
 	{
-		//sleep(100);
+		sleep(1);
 		measureDistance = 10;
 		signalOne(&measureSignal);
 	}

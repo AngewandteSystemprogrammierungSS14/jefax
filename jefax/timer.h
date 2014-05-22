@@ -10,7 +10,7 @@
 typedef struct{
 	void (*callBack) (void*);
 	void *arg;
-	int ms;
+	volatile int ms;
 } timer_t;
 
 int initTimerSystem();

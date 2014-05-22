@@ -6,18 +6,16 @@
  */ 
 
 #include "scheduler.h"
-#include "dispatcher.h"
+#include "jefax_xmega128.h "
 #include "atomic.h"
 #include "timer.h"
+#include "utils.h"
 #include <stdlib.h>
 #include <avr/interrupt.h>
 
 
 /* prototypes */
-static int initSchedulerTasks();
 static int initTaskLists();
-static int schedule();
-static task_t *selectNextTask();
 static void sleepTimerCallback(void *arg);
 static void forceContextSwitch();
 static int idleTaskFunction();
@@ -29,14 +27,12 @@ static taskList_t readyList;
 static taskList_t blockingList;
 static scheduler_t *scheduler;
 
-static task_t idleTask;
-static task_t schedulerTask;
+static task_t idleTask = { idleTaskFunction, 255, READY, 0, {0} };
 
 int initScheduler(scheduler_t *p_defaultScheduler)
 {
-	int ret = initSchedulerTasks();
-	if(ret)
-		return ret;
+	int ret;
+	initTask(&idleTask);
 	
 	ret = initTaskLists();
 	if(ret)
@@ -47,25 +43,6 @@ int initScheduler(scheduler_t *p_defaultScheduler)
 		return ret;
 		
 	setScheduler(p_defaultScheduler);
-	initDispatcher(&schedulerTask);
-	
-	return 0;
-}
-
-static int initSchedulerTasks()
-{
-	schedulerTask.function = schedule;
-	schedulerTask.priority = 255;
-	schedulerTask.state = READY;
-	schedulerTask.stackpointer = 0;
-	
-	idleTask.function = idleTaskFunction;
-	idleTask.priority = 255;
-	idleTask.state = READY;
-	idleTask.stackpointer = 0;
-	
-	initTask(&schedulerTask);
-	initTask(&idleTask);
 	
 	return 0;
 }
@@ -94,14 +71,7 @@ static int initTaskLists()
 	return 0;
 }
 
-static int schedule()
-{
-	task_t *task = selectNextTask();
-	dispatch(task);
-	return 0;
-}
-
-static task_t *selectNextTask()
+task_t* schedule()
 {
 	task_t *result;
 	runningTask = scheduler->getNextTask();
@@ -133,7 +103,9 @@ void sleep(const int p_ms)
 static void sleepTimerCallback(void *arg)
 {
 	task_t *task = (task_t*) arg;
-	setTaskState(task, READY);
+	task->state = READY;
+	if(task->priority < runningTask->priority)
+		FORCE_INTERRUPT(TCC0);
 }
 
 void setTaskState(task_t *p_task, taskState_t p_state)
@@ -156,7 +128,7 @@ static void forceContextSwitch()
 	// create interrupt
 	sei();
 	
-	TCC0.CNT = TCC0.PER - 1;
+	FORCE_INTERRUPT(TCC0);
 	
 	// wait to be exchanged
 	while(getTaskState(runningTask) != RUNNING)

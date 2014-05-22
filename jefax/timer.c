@@ -8,27 +8,27 @@
 #include "timer.h"
 #include "task.h"
 #include "atomic.h"
+#include "utils.h"
+#include "scheduler.h"
 #include <avr/interrupt.h>
 
 #define DEF_TIMER_COUNT 20
-#define MS_TO_TIMER_PER(ms) ((int) (((unsigned long) ms) * 32000000000UL / 256UL))
-#define TIMER_PER_TO_MS(per) ((int) (((unsigned long) per) * 256UL / 32000000000UL))
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
-#define DISABLE_TIMER() TCC0.CTRLA = TC_CLKSEL_OFF_gc
-#define ENABLE_TIMER() TCC0.CTRLA = TIMER_PRESCALER
+#define PRESCALE_VALUE 256
 
-static timer_t timers[DEF_TIMER_COUNT];
-static int timerCount;
+static volatile timer_t timers[DEF_TIMER_COUNT];
+static volatile int timerCount;
 
 static void updatePeriod();
 static void timerElapsed(const int p_index);
+static void decreaseTimers();
 
 int initTimerSystem()
 {
 	// Set 16 bit timer
 	TCD0.CTRLA = TC_CLKSEL_OFF_gc; // timer off
 	TCD0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
-	TCD0.PER = MS_TO_TIMER_PER(100);
+	TCD0.PER = MS_TO_TIMER(100, PRESCALE_VALUE);
 	TCD0.CNT = 0x00;
 	TCD0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 	
@@ -55,8 +55,8 @@ int addTimer(timer_t p_timer)
 	++timerCount;
 	updatePeriod();
 	
-	if(timerCount == 1)
-		ENABLE_TIMER();
+	if(timerCount >= 1)
+		ENABLE_TIMER(TCD0, TIMER_PRESCALER);
 	
 	int result = timerCount - 1;
 	
@@ -67,7 +67,7 @@ int addTimer(timer_t p_timer)
 
 static void updatePeriod()
 {
-	int nextMS = 100;
+	int nextMS = 1000;
 	int i;
 	for(i = 0; i < timerCount; ++i)
 	{
@@ -76,14 +76,25 @@ static void updatePeriod()
 	}
 	
 	TCD0.CNT = 0;
-	TCD0.PER = MS_TO_TIMER_PER(nextMS);
+	TCD0.PER = nextMS * 100;//MS_TO_TIMER(nextMS, PRESCALE_VALUE);
 }
 
-ISR(TCD0_OVF_vect)
+ISR(TCD0_OVF_vect,ISR_NAKED)
 {
-	int ms = TIMER_PER_TO_MS(TCD0.PER);
-	int i;
+	SAVE_CONTEXT();
+	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
+	decreaseTimers();
+	
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+	RESTORE_CONTEXT();
+	reti();
+}
+
+static void decreaseTimers(const int p_ms)
+{
+	int ms = 1;//TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
+	int i;
 	for(i = 0; i < timerCount; ++i)
 		timers[i].ms -= ms;
 	
@@ -103,5 +114,5 @@ static void timerElapsed(const int p_index)
 	--timerCount;
 	
 	if(timerCount == 0)
-		DISABLE_TIMER();
+		DISABLE_TIMER(TCD0);
 }
