@@ -9,11 +9,6 @@
 #include <stdint.h>
 
 /**
- * Enables the low level IRs of the PMIC and the global IRs.
- */
-void enableInterrupts();
-
-/**
  * Initializes the LEDs on the PORTE.
  */
 void initLED();

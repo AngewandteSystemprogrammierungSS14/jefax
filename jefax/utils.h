@@ -96,3 +96,5 @@
 #define MS_TO_TIMER(ms, prescale) (int) (ms * (32000 / prescale))
 #define TIMER_TO_MS(per, prescale) (int) ((per * prescale) / 32000)
 #define FORCE_INTERRUPT(timer) timer.CNT = timer.PER - 1
+
+void enableInterrupts();

@@ -29,6 +29,6 @@ int insertTask(taskList_t *p_list, task_t *p_task, const int p_index);
 task_t* removeTask(taskList_t *p_list, const int p_index);
 int containsTask(taskList_t *p_list, task_t *p_task);
 
-/*Sorts the tasks in the given tasklist with merge sort.
+/*Sorts the tasks in the given tasklist with bubble sort.
   Lowest priority (highest value) comes first. */
 void sortPriority(taskList_t *p_list);

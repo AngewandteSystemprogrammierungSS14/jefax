@@ -1,12 +1,5 @@
 #include "jefax_xmega128.h"
 #include <avr/io.h>
-#include <avr/interrupt.h>
-
-void enableInterrupts()
-{
-	PMIC.CTRL |= PMIC_LOLVLEN_bm;
-	sei();	
-}
 
 void initLED()
 {

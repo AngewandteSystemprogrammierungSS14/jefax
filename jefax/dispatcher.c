@@ -3,6 +3,7 @@
 #include "schedulerRR.h"
 #include "atomic.h"
 #include "utils.h"
+#include "jefax_xmega128.h"
 #include <avr/interrupt.h>
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
@@ -56,8 +57,7 @@ static void init32MHzClock()
 	CLK.CTRL = (CLK.CTRL & ~CLK_SCLKSEL_gm) | CLK_SCLKSEL_RC32M_gc;
 }
 
-/* Sets the timer interrupt. At each interrupt the dispatcher changes
-   the running task. (Timer overflow IR is used).*/
+/* Initializes timer for time slices.*/
 static void initTimer()
 {
 	// Set 16 bit timer
@@ -75,6 +75,7 @@ void setInterruptTime(unsigned int p_msec)
 	exitAtomicBlock(irEnabled);
 }
 
+/* Function for dispatcher task. */
 static int runDispatcher()
 {
 	task_t* toDispatch = schedule();
@@ -82,6 +83,7 @@ static int runDispatcher()
 	return 0;
 }
 
+/* Change to the given task. */
 static void dispatch(task_t *p_task)
 {
 	SP = (uint16_t) (p_task->stackpointer);

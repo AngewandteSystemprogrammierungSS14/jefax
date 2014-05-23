@@ -12,7 +12,7 @@
 #define TIME_STEP 10
 #define MAX_X 50
 #define MAX_Y 50
-#define MAX_THETA 360
+#define MAX_THETA 2 * M_PI
 
 DECLARE_MUTEX(posMutex);
 DECLARE_CONDITION(posUpdate);
@@ -26,6 +26,7 @@ static int y_vel = 2;
 static int ang_vel = 6;
 
 static int resultGlob;
+static int nextValue;
 
 DECLARE_SIGNAL(measureSignal);
 
@@ -110,6 +111,8 @@ int schedTestTask5()
 		
 		tmp = resultGlob;
 		
+		nextValue = (tmp / 2) + (resultGlob + 3) / 7;
+		
 		yield();
 		
 		unlockMutex(&simpleTestMutex);
@@ -124,7 +127,7 @@ int schedTestTask6()
 	{
 		lockMutex(&simpleTestMutex);
 		
-		result = resultGlob;
+		result = nextValue;
 		for(i = 0; i < 1000; ++i)
 		{
 			result += 4 * i + 20;

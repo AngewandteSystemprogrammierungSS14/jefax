@@ -6,18 +6,16 @@
  */ 
 
 #include "scheduler.h"
-#include "jefax_xmega128.h "
 #include "atomic.h"
 #include "timer.h"
 #include "utils.h"
-#include <stdlib.h>
+#include "jefax_xmega128.h"
 #include <avr/interrupt.h>
 
 
 /* prototypes */
 static int initTaskLists();
 static void sleepTimerCallback(void *arg);
-static void forceContextSwitch();
 static int idleTaskFunction();
 
 extern task_t TASKS[];
@@ -58,11 +56,10 @@ static int initTaskLists()
 	if(taskCount <= 0)
 		return -1;
 	
-	runningTask = &(TASKS[0]);
-	runningTask->state = RUNNING;
+	runningTask = NULL;
 	
 	int i;
-	for(i = 1; i < taskCount; ++i)
+	for(i = 0; i < taskCount; ++i)
 	{
 		TASKS[i].state = READY;
 		pushTaskBack(&readyList, &TASKS[i]);
@@ -104,8 +101,7 @@ static void sleepTimerCallback(void *arg)
 {
 	task_t *task = (task_t*) arg;
 	task->state = READY;
-	if(task->priority < runningTask->priority)
-		FORCE_INTERRUPT(TCC0);
+	scheduler->taskWokeUp(task);
 }
 
 void setTaskState(task_t *p_task, taskState_t p_state)
@@ -113,16 +109,12 @@ void setTaskState(task_t *p_task, taskState_t p_state)
 	uint8_t irEnabled = enterAtomicBlock();
 	
 	p_task->state = p_state;
-	//check if high prior task got ready
-	if(p_task->state == READY && p_task->priority < runningTask->priority)
-		runningTask->state = READY;
-	if(runningTask->state != RUNNING)
-		forceContextSwitch();
+	scheduler->taskStateChanged(p_task);
 		
 	exitAtomicBlock(irEnabled);	
 }
 
-static void forceContextSwitch()
+void forceContextSwitch()
 {
 	uint8_t state = SREG & 0x80;
 	// create interrupt

@@ -7,14 +7,18 @@
 
 #include "schedulerRR.h"
 #include "stddef.h"
+#include "utils.h"
+#include <avr/interrupt.h>
 
 static void initSchedulerRR();
 static task_t* getNextTaskRR();
 static void readyUpBlockingTasksRR();
 static int insertTaskRR(taskList_t *p_tasks, task_t *p_task);
 static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task);
+static void taskStateChangedRR(task_t* p_task);
+static void taskWokeUpRR(task_t* p_task);
 
-static scheduler_t schedulerRR = { initSchedulerRR, getNextTaskRR, NULL, NULL };
+static scheduler_t schedulerRR = { initSchedulerRR, getNextTaskRR, taskStateChangedRR, taskWokeUpRR, NULL, NULL };
 
 scheduler_t *getRRScheduler()
 {
@@ -95,4 +99,19 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 		++result;
 		
 	return result;
+}
+
+static void taskStateChangedRR(task_t* p_task)
+{
+	//check if high prior task got ready
+	if(p_task->state == READY && p_task->priority < getRunningTask()->priority)
+		getRunningTask()->state = READY;
+	if(getRunningTask()->state != RUNNING)
+		forceContextSwitch();
+}
+
+static void taskWokeUpRR(task_t* p_task)
+{
+	if(p_task->priority < getRunningTask()->priority)
+		FORCE_INTERRUPT(TCC0);
 }
