@@ -47,6 +47,22 @@ task_t* popTaskFront(taskList_t *p_list)
 	return removeTask(p_list, 0);
 }
 
+task_t* getLast(taskList_t *p_list)
+{
+	if(p_list->count <= 0)
+		return NULL;
+		
+	return p_list->elements[p_list->count];
+}
+
+task_t* getFirst(taskList_t *p_list)
+{
+	if(p_list->count <= 0)
+		return NULL;
+	
+	return p_list->elements[0];
+}
+
 int insertTask(taskList_t *p_list, task_t *p_task, const int p_index)
 {
 	if(p_list->count >= p_list->size)
@@ -90,6 +106,11 @@ int containsTask(taskList_t *p_list, task_t *p_task)
 	}
 	
 	return i < p_list->count;
+}
+
+int isEmpty(taskList_t *p_list)
+{
+	return p_list->count == 0;
 }
 
 void sortPriority(taskList_t *p_list)

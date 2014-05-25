@@ -37,7 +37,7 @@ static task_t* getNextTaskRR()
 	readyUpBlockingTasksRR();
 	
 	//ready list is empty
-	if(schedulerRR.readyList->count <= 0)
+	if(isEmpty(schedulerRR.readyList))
 	{
 		if(NO_TASK_SCHEDULED() || RUNNING_TASK_IS_BLOCKING())
 			result = NULL;
@@ -50,10 +50,18 @@ static task_t* getNextTaskRR()
 	else
 	{
 		// get next task with highest priority
-		result = popTaskBack(schedulerRR.readyList);
+		result = getLast(schedulerRR.readyList);
 		
-		if(RUNNING_TASK_IS_RUNNING())
-			getRunningTask()->state = READY;
+		//next task would have lower prio, keep running task
+		if(getRunningTask()->state == RUNNING && result->priority > getRunningTask()->priority)
+			result = getRunningTask();
+		else
+		{
+			popTaskBack(schedulerRR.readyList);
+			
+			if(RUNNING_TASK_IS_RUNNING())
+				getRunningTask()->state = READY;
+		}
 	}
 		
 	//put runningTask in correct List
@@ -92,12 +100,15 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 		return 0;
 		
 	result = p_tasks->count / 2;
-	if(p_tasks->elements[result]->priority <= p_task->priority)
+	if(p_tasks->elements[result]->priority < p_task->priority)
 		result = 0;
 
 	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
 		++result;
-		
+	
+	while(p_tasks->elements[result]->priority == p_task->priority)
+		--result;
+	
 	return result;
 }
 
