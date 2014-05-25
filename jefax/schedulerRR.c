@@ -53,7 +53,7 @@ static task_t* getNextTaskRR()
 		result = getLast(schedulerRR.readyList);
 		
 		//next task would have lower prio, keep running task
-		if(getRunningTask()->state == RUNNING && result->priority > getRunningTask()->priority)
+		if(RUNNING_TASK_IS_RUNNING() && result->priority > getRunningTask()->priority)
 			result = getRunningTask();
 		else
 		{
