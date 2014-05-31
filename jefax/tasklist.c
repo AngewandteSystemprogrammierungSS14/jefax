@@ -52,7 +52,7 @@ task_t* getLast(taskList_t *p_list)
 	if(p_list->count <= 0)
 		return NULL;
 		
-	return p_list->elements[p_list->count];
+	return p_list->elements[p_list->count - 1];
 }
 
 task_t* getFirst(taskList_t *p_list)

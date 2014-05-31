@@ -76,7 +76,7 @@ static void updatePeriod()
 	}
 	
 	TCD0.CNT = 0;
-	TCD0.PER = nextMS * 100;//MS_TO_TIMER(nextMS, PRESCALE_VALUE);
+	TCD0.PER = MS_TO_TIMER(nextMS, PRESCALE_VALUE);
 }
 
 ISR(TCD0_OVF_vect,ISR_NAKED)
@@ -93,7 +93,7 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 
 static void decreaseTimers(const int p_ms)
 {
-	int ms = 1;//TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
+	int ms = TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
 	int i;
 	for(i = 0; i < timerCount; ++i)
 		timers[i].ms -= ms;

@@ -78,7 +78,7 @@ static void initTimer()
 	// Set 16 bit timer
 	TCC0.CTRLA = TIMER_PRESCALER; // 256 prescaler -> 3900 / sec -> 65536 max.
 	TCC0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
-	TCC0.PER = 20;
+	TCC0.PER = MS_TO_TIMER(100, PRESCALER_VALUE);
 	TCC0.CNT = 0x00;
 	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 }
