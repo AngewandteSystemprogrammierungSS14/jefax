@@ -47,14 +47,29 @@ void initDispatcher()
 
 static void init32MHzClock()
 {
-	//Oszillator auf 32Mhz stellen
+	uint8_t clkCtrl;
+	
+	// Enable 32Mhz internal clock source
 	OSC.CTRL |= OSC_RC32MEN_bm;
-	// Warten bis der Oszillator bereit ist
-	while(!(OSC.STATUS & OSC_RC32MRDY_bm));
-	//Schützt I/O Register, Interrupts werden ignoriert
-	CCP = CCP_IOREG_gc;
-	//aktiviert den internen Oszillator
-	CLK.CTRL = (CLK.CTRL & ~CLK_SCLKSEL_gm) | CLK_SCLKSEL_RC32M_gc;
+	
+	// Wait until clock source is stable
+	while (!(OSC.STATUS & OSC_RC32MRDY_bm));
+	
+	// Select main clock source
+	clkCtrl = (CLK.CTRL & ~CLK_SCLKSEL_gm) | CLK_SCLKSEL_RC32M_gc;
+	
+	asm volatile(
+	"movw r30,  %0"	      "\n\t"
+	"ldi  r16,  %2"	      "\n\t"
+	"out   %3, r16"	      "\n\t"
+	"st     Z,  %1"       "\n\t"
+	:
+	: "r" (&CLK.CTRL), "r" (clkCtrl), "M" (CCP_IOREG_gc), "i" (&CCP)
+	: "r16", "r30", "r31"
+	);
+	
+	// Disable 2Mhz default clock source
+	//OSC.CTRL &= ~OSC_RC2MEN_bm;
 }
 
 /* Initializes timer for time slices.*/
