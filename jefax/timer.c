@@ -94,10 +94,14 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 
 static void decreaseTimers(const int p_ms)
 {
-	int ms = TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
+	unsigned int ms = TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
+	unsigned int toDec;
 	int i;
 	for(i = 0; i < timerCount; ++i)
-		timers[i].ms -= ms;
+	{
+		toDec = timers[i].ms >= ms ? ms : timers[i].ms;
+		timers[i].ms -= toDec;
+	}
 	
 	for(i = 0; i < timerCount; ++i)
 	{
