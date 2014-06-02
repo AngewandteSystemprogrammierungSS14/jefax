@@ -10,9 +10,9 @@
 typedef struct{
 	void (*callBack) (void*);
 	void *arg;
-	volatile int ms;
+	volatile unsigned int ms;
 } timer_t;
 
 int initTimerSystem();
-int initTimer(timer_t *p_timer, int p_ms, void (*p_callBack) (void*), void * p_arg);
+int initTimer(timer_t *p_timer, unsigned int p_ms, void (*p_callBack) (void*), void * p_arg);
 int addTimer(timer_t p_timer);

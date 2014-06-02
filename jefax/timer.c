@@ -10,6 +10,7 @@
 #include "atomic.h"
 #include "utils.h"
 #include "scheduler.h"
+#include <limits.h>
 #include <avr/interrupt.h>
 
 #define DEF_TIMER_COUNT 20
@@ -35,7 +36,7 @@ int initTimerSystem()
 	return 0;
 }
 
-int initTimer(timer_t *p_timer, int p_ms, void (*p_callBack) (void*), void * p_arg)
+int initTimer(timer_t *p_timer, unsigned int p_ms, void (*p_callBack) (void*), void * p_arg)
 {
 	p_timer->ms = p_ms;
 	p_timer->callBack = p_callBack;
@@ -67,7 +68,7 @@ int addTimer(timer_t p_timer)
 
 static void updatePeriod()
 {
-	int nextMS = 1000;
+	unsigned int nextMS = UINT_MAX;
 	int i;
 	for(i = 0; i < timerCount; ++i)
 	{
@@ -103,6 +104,8 @@ static void decreaseTimers(const int p_ms)
 		while(i < timerCount && timers[i].ms <= 0)
 			timerElapsed(i);
 	}
+	if(timerCount > 0)
+		updatePeriod();
 }
 
 static void timerElapsed(const int p_index)

@@ -93,8 +93,8 @@
 
 #define DISABLE_TIMER(timer) timer.CTRLA; timer.CTRLA = TC_CLKSEL_OFF_gc
 #define ENABLE_TIMER(timer, prescaler) timer.CTRLA = prescaler
-#define MS_TO_TIMER(ms, prescale) (int) (ms * (32000 / prescale))
-#define TIMER_TO_MS(per, prescale) (int) ((per * prescale) / 32000)
+#define MS_TO_TIMER(ms, prescale) (unsigned int) (ms * (32000 / prescale))
+#define TIMER_TO_MS(per, prescale) (unsigned int) ((per * prescale) / 32000)
 #define FORCE_INTERRUPT(timer) timer.CNT = timer.PER - 1
 
 void enableInterrupts();
