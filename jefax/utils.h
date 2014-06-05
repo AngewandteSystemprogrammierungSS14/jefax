@@ -7,6 +7,9 @@
 
 #pragma once
 
+uint8_t *main_stackpointer;
+#define ENTER_SYSTEM_STACK() SP = (uint16_t) main_stackpointer
+
 /**
  * Disables interrupts and saves the working registers and the sreg on the stack.
  */

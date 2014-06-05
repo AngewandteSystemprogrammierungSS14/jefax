@@ -18,8 +18,6 @@ static void init32MHzClock();
 static int runDispatcher();
 static void dispatch(task_t *p_task);
 
-uint8_t *main_stackpointer;
-
 static task_t dispatcherTask = {runDispatcher, 255, READY, 0, {0}};
 
 void initDispatcher()
@@ -114,6 +112,7 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
 	// set stackpointer to default task
+	ENTER_SYSTEM_STACK();
 	initTask(&dispatcherTask);
 	SP = (uint16_t) (dispatcherTask.stackpointer);
 	

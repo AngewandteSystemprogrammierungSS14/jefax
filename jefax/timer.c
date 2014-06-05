@@ -85,6 +85,8 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
+	ENTER_SYSTEM_STACK();
+	
 	decreaseTimers();
 	
 	SP = (uint16_t) (getRunningTask()->stackpointer);
