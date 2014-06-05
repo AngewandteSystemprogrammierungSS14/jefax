@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 uint8_t *main_stackpointer;
 #define ENTER_SYSTEM_STACK() SP = (uint16_t) main_stackpointer
 

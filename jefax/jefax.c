@@ -3,6 +3,7 @@
 #include "user_counterTask.h"
 #include "jefax_xmega128.h"
 #include "scheduler_test.h"
+#include "shell.h"
 
 /**
  * The task list with all the tasks the dispatcher
@@ -14,6 +15,7 @@ task_t TASKS[] = {
 	{schedTestTask2, 2, READY, 0, {0}},
 	{schedTestTask3, 1, READY, 0, {0}},
 	{schedTestTask4, 2, READY, 0, {0}},
+	SHELL_TASK,
 	{0, 0, READY, 0, {0}}
 };
 

@@ -4,6 +4,7 @@
 #include "atomic.h"
 #include "utils.h"
 #include "jefax_xmega128.h"
+#include "usart.h"
 #include <avr/interrupt.h>
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
@@ -26,6 +27,7 @@ void initDispatcher()
 	initLED();
 	
 	init32MHzClock();
+	initUsart();
 	enableInterrupts();
 	initTimer();
 	

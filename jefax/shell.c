@@ -13,7 +13,7 @@ static void printNewLine();
 static void parseMessage(message *msg);
 static message *waitForMessage();
 
-void shellTask()
+int shellTask()
 {
     initLED();
 
@@ -33,6 +33,7 @@ void shellTask()
     }
 
     stopUsart();
+	return 1;
 }
 
 static void parseMessage(message *msg)

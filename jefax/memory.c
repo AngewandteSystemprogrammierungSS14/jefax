@@ -3,6 +3,7 @@
  */
 
 #include "memory.h"
+#include "atomic.h"
 #include <avr/io.h>
 
 // Defined from linker script
@@ -31,35 +32,45 @@ void *allocateMemory(uint8_t size)
 {
 	memoryArea *newMemoryArea;
 	void *memoryFromFreeList;
+	uint8_t irStatus;
 	
 	// Size has to be at least the size of the pointer.
 	if (size < sizeof(memoryArea*))
 		size = sizeof(memoryArea*);
+		
+	irStatus = enterAtomicBlock();
 	
 	if (nextFreeMemory == 0)
 		nextFreeMemory = heapStart;
 	
 	memoryFromFreeList = checkFreeList(size);
-	if (memoryFromFreeList)
+	if (memoryFromFreeList) {
+		exitAtomicBlock(irStatus);
 		return memoryFromFreeList;
-		
+	}
+	
 	// No memory from free list available, get new memory.
 	
 	// Check collision with stack.
-	if ((nextFreeMemory + size + sizeof(uint8_t)) >= (char *) (SP - margin))
+	if ((nextFreeMemory + size + sizeof(uint8_t)) >= (char *) (SP - margin)) {
+		exitAtomicBlock(irStatus);
 		return 0;
+	}
 	
 	newMemoryArea = (memoryArea *) nextFreeMemory;
 	newMemoryArea->size = size;
 	
 	nextFreeMemory += size + sizeof(uint8_t);
 	
+	exitAtomicBlock(irStatus);
 	return &(newMemoryArea->next);
 }
 
 void freeMemory(void *mem)
 {
 	memoryArea *oldMemoryArea;
+	
+	uint8_t irStatus = enterAtomicBlock();
 	
 	oldMemoryArea = (memoryArea *) (mem - sizeof(uint8_t));
 	
@@ -72,12 +83,16 @@ void freeMemory(void *mem)
 	}
 	
 	freeListEnd->next = 0;
+	
+	exitAtomicBlock(irStatus);
 }
 
 memoryInfo dumpMemory()
 {
 	memoryInfo info;
 	memoryArea *iterator;
+	
+	uint8_t irStatus = enterAtomicBlock();
 	
 	info.heapStart = heapStart;
 	info.nextFreeMemory = nextFreeMemory;
@@ -94,6 +109,7 @@ memoryInfo dumpMemory()
 		++info.freeListEntries;
 	}
 	
+	exitAtomicBlock(irStatus);
 	return info;
 }
 

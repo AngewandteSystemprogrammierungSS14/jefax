@@ -1,6 +1,9 @@
 #include "usart.h"
 #include "usart_ascii.h"
 #include "shell.h"
+#include "scheduler.h"
+#include "utils.h"
+#include "atomic.h"
 #include <avr/interrupt.h>
 
 static messageQueue *rxQueue;
@@ -77,15 +80,25 @@ void stopUsart()
 
 void sendMessageUsart(message *msg)
 {
+	uint8_t irStatus = enterAtomicBlock();
+	
     enqueue(txQueue, msg);
 
     // Enable DRE IR
     USART.CTRLA |= USART_DREINTLVL_LO_gc;
+	
+	exitAtomicBlock(irStatus);
 }
 
 message *receiveMessageUsart()
 {
-    return dequeue(rxQueue);
+	uint8_t irStatus = enterAtomicBlock();
+	
+    message *msg = dequeue(rxQueue);
+	
+	exitAtomicBlock(irStatus);
+	
+	return msg;
 }
 
 void printChar(char character)
@@ -261,12 +274,30 @@ static void send()
     }
 }
 
-ISR(USARTC0_RXC_vect)
+ISR(USARTC0_RXC_vect, ISR_NAKED)
 {
-    receive();
+	SAVE_CONTEXT();
+	getRunningTask()->stackpointer = (uint8_t *) SP;
+	
+	ENTER_SYSTEM_STACK();
+	
+	receive();
+	
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+	RESTORE_CONTEXT();
+	reti();
 }
 
-ISR(USARTC0_DRE_vect)
+ISR(USARTC0_DRE_vect, ISR_NAKED)
 {
+	SAVE_CONTEXT();
+	getRunningTask()->stackpointer = (uint8_t *) SP;
+	
+	ENTER_SYSTEM_STACK();
+	
     send();
+	
+    SP = (uint16_t) (getRunningTask()->stackpointer);
+    RESTORE_CONTEXT();
+    reti();
 }
