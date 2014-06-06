@@ -12,7 +12,7 @@
 #define PRINT_HEADER "jefax> "
 #define HEADER_LIMIT 0x38 // ASCII: Column '8'
 
-#define SHELL_TASK {shellTask, 3, READY, 0, {0}}
+#define SHELL_TASK {shellTask, 1, READY, 0, {0}}
 
 /**
  * This task can be scheduled.

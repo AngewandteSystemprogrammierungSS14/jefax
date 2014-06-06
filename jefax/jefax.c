@@ -11,19 +11,20 @@
  * with 0 as the first entry.
  */
 task_t TASKS[] = {
-	{schedTestTask1, 2, READY, 0, {0}},
-	{schedTestTask2, 2, READY, 0, {0}},
-	{schedTestTask3, 1, READY, 0, {0}},
-	{schedTestTask4, 2, READY, 0, {0}},
-	SHELL_TASK,
-	{0, 0, READY, 0, {0}}
+    /*{schedTestTask1, 2, READY, 0, {0}},
+    {schedTestTask2, 2, READY, 0, {0}},
+    {schedTestTask3, 1, READY, 0, {0}},
+    {schedTestTask4, 2, READY, 0, {0}},*/
+    {counterTask2, 2, READY, 0, {0}},
+    SHELL_TASK,
+    {0, 0, READY, 0, {0}}
 };
 
 void jefax()
-{	
-	int i;
-	for(i = 0; i < countTasks(); ++i)
-		initTask(&TASKS[i]);
-	
-	initDispatcher();
+{
+    int i;
+    for(i = 0; i < countTasks(); ++i)
+        initTask(&TASKS[i]);
+
+    initDispatcher();
 }

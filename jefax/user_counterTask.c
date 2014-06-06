@@ -14,30 +14,30 @@
 
 int counterTask1()
 {
-	volatile int counter;
-	
-	while (1) {
-		++counter;
-		
-		setLED(LED_MASK1);
-		//_delay_ms(100);
-		setLED(0xFF);
-	}
-	
-	return 0;
+    volatile int counter;
+
+    while (1) {
+        ++counter;
+
+        setLED(LED_MASK1);
+        //_delay_ms(100);
+        setLED(0xFF);
+    }
+
+    return 0;
 }
 
 int counterTask2()
 {
-	volatile int counter;
-	
-	while (1) {
-		++counter;
-		
-		setLED(LED_MASK2);
-		//_delay_ms(100);
-		setLED(0xFF);
-	}
-	
-	return 0;
+    volatile int counter;
+
+    while (1) {
+        ++counter;
+
+        setLED(LED_MASK2);
+        //_delay_ms(100);
+        setLED(0xFF);
+    }
+
+    return 0;
 }
