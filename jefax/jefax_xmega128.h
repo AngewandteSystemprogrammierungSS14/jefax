@@ -19,3 +19,7 @@ void initLED();
  * @param status The new status of the leds
  */
 void setLED(uint8_t status);
+
+void setLEDPin(uint8_t pin);
+
+void clearLEDPin(uint8_t pin);

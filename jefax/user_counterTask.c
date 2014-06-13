@@ -1,16 +1,11 @@
 #include "user_counterTask.h"
 #include "jefax_xmega128.h"
+#include "scheduler.h"
+
 #include <util/delay.h>
 
-/**
- * Use LED 1 on board.
- */
-#define LED_MASK1 0xFE
-
-/**
- * Use LED 2 on board.
- */
-#define LED_MASK2 0xFD
+#define LED2 0x02
+#define LED3 0x04
 
 int counterTask1()
 {
@@ -19,9 +14,14 @@ int counterTask1()
     while (1) {
         ++counter;
 
-        setLED(LED_MASK1);
-        //_delay_ms(100);
-        setLED(0xFF);
+        setLEDPin(LED3);
+
+        //sleep(50);
+        _delay_ms(500);
+
+        clearLEDPin(LED3);
+
+        _delay_ms(200);
     }
 
     return 0;
@@ -34,9 +34,15 @@ int counterTask2()
     while (1) {
         ++counter;
 
-        setLED(LED_MASK2);
-        //_delay_ms(100);
-        setLED(0xFF);
+        setLEDPin(LED2);
+
+        sleep(500);
+        //_delay_ms(500);
+
+        clearLEDPin(LED2);
+
+        sleep(500);
+        //_delay_ms(200);
     }
 
     return 0;
