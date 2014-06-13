@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "jefax_xmega128.h"
 
+static void (*processMessage)(char *msg) = NULL;
 static void printHeader();
 static void printNewLine();
 static void parseMessage(message *msg);
@@ -24,7 +25,7 @@ int shellTask()
 
         printHeader();
 
-        // Blocking busy loop
+        // Busy loop
         msg = waitForMessage();
 
         // Got message from queue
@@ -70,7 +71,8 @@ static void parseMessage(message *msg)
 
         print(out);
         printNewLine();
-    }
+    } else if(processMessage != NULL)
+		processMessage(data);
 }
 
 static message *waitForMessage()
@@ -94,4 +96,9 @@ static void printHeader()
 static void printNewLine()
 {
     print("\r\n");
+}
+
+void setMessageCallback(void (*processMessageCB)(char *msg))
+{
+	processMessage = processMessageCB;
 }
