@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-uint8_t *main_stackpointer;
+extern uint8_t *main_stackpointer;
 #define ENTER_SYSTEM_STACK() SP = (uint16_t) main_stackpointer
 
 /**
@@ -98,8 +98,10 @@ uint8_t *main_stackpointer;
 
 #define DISABLE_TIMER(timer) timer.CTRLA; timer.CTRLA = TC_CLKSEL_OFF_gc
 #define ENABLE_TIMER(timer, prescaler) timer.CTRLA = prescaler
-#define MS_TO_TIMER(ms, prescale) (unsigned int) (ms * (32000 / prescale))
-#define TIMER_TO_MS(per, prescale) (unsigned int) ((per * prescale) / 32000)
+#define MS_PER_SEC 1000
+#define MS_TO_TIMER(ms, prescaler) ((uint16_t) (ms * ((F_CPU / MS_PER_SEC) / getPrescalerValue(prescaler))))
+#define TIMER_TO_MS(cnt, prescaler) ((uint16_t) ((cnt * getPrescalerValue(prescaler)) / (F_CPU / MS_PER_SEC)))
 #define FORCE_INTERRUPT(timer) timer.CNT = timer.PER - 1
 
 void enableInterrupts();
+unsigned int getPrescalerValue(uint8_t p_prescaler);

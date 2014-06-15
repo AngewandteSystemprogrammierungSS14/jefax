@@ -39,35 +39,33 @@ static task_t* getNextTaskRR()
 	//ready list is empty
 	if(isEmpty(schedulerRR.readyList))
 	{
-		if(NO_TASK_SCHEDULED() || RUNNING_TASK_IS_BLOCKING())
+		if(!hasRunningTask() || TASK_IS_BLOCKING(getRunningTask()))
 			result = NULL;
-		else
-		{
+		else {
 			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
 		}
 	}
-	else
-	{
+	else {
 		// get next task with highest priority
 		result = getLast(schedulerRR.readyList);
 		
 		//next task would have lower prio, keep running task
-		if(RUNNING_TASK_IS_RUNNING() && result->priority > getRunningTask()->priority)
+		if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) && result->priority > getRunningTask()->priority) {
+			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
-		else
-		{
+		} else {
 			popTaskBack(schedulerRR.readyList);
 			
-			if(RUNNING_TASK_IS_RUNNING())
+			if(hasRunningTask() && TASK_IS_RUNNING(getRunningTask()))
 				getRunningTask()->state = READY;
 		}
 	}
 		
 	//put runningTask in correct List
-	if(RUNNING_TASK_IS_READY())
+	if(hasRunningTask() && TASK_IS_READY(getRunningTask()))
 		insertTaskRR(schedulerRR.readyList, getRunningTask());
-	else if(RUNNING_TASK_IS_BLOCKING())
+	else if(hasRunningTask() && TASK_IS_BLOCKING(getRunningTask()))
 		pushTaskBack(schedulerRR.blockingList, getRunningTask());
 	
 	return result;
@@ -76,10 +74,9 @@ static task_t* getNextTaskRR()
 static void readyUpBlockingTasksRR()
 {
 	volatile int i;
-	for(i = 0; i < schedulerRR.blockingList->count; ++i)
-	{
-		if(schedulerRR.blockingList->elements[i]->state != BLOCKING)
-		{
+	// for all blocking task check if their state changed to non blocking
+	for(i = 0; i < schedulerRR.blockingList->count; ++i) {
+		if(!TASK_IS_BLOCKING(schedulerRR.blockingList->elements[i])) {
 			insertTaskRR(schedulerRR.readyList, schedulerRR.blockingList->elements[i]);
 			removeTask(schedulerRR.blockingList, i);
 		}
@@ -98,31 +95,27 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 	
 	if(p_tasks->count == 0)
 		return 0;
-		
-	result = p_tasks->count / 2;
-	if(p_tasks->elements[result]->priority < p_task->priority)
-		result = 0;
-
+			
+	result = 0;
 	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
 		++result;
-	
-	while(p_tasks->elements[result]->priority == p_task->priority)
-		--result;
 	
 	return result;
 }
 
 static void taskStateChangedRR(task_t* p_task)
 {
-	//check if high prior task got ready
-	if(p_task->state == READY && p_task->priority < getRunningTask()->priority)
+	//check if there is any running task, if true check if high prior task got ready
+	if(hasRunningTask() && TASK_IS_READY(p_task) && p_task->priority < getRunningTask()->priority)
 		getRunningTask()->state = READY;
-	if(getRunningTask()->state != RUNNING)
+	// if running task is not in running state anymore switch task
+	if(!hasRunningTask() || !TASK_IS_RUNNING(getRunningTask()))
 		forceContextSwitch();
 }
 
+/* runs in interrupt context, so calling forceContextSwitch() is not possible */
 static void taskWokeUpRR(task_t* p_task)
 {
-	if(p_task->priority < getRunningTask()->priority)
+	if(!hasRunningTask() || (p_task->priority < getRunningTask()->priority))
 		FORCE_INTERRUPT(TCC0);
 }

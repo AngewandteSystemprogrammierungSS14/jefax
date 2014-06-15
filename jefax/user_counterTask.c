@@ -16,12 +16,12 @@ int counterTask1()
 
         setLEDPin(LED3);
 
-        //sleep(50);
-        _delay_ms(500);
+        sleep(50);
+        //_delay_ms(500);
 
         clearLEDPin(LED3);
 
-        _delay_ms(200);
+        //_delay_ms(200);
     }
 
     return 0;
