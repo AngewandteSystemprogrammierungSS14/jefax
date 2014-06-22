@@ -485,15 +485,15 @@ Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu sch
 \section{Verbesserungsmöglichkeiten}
 Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann.
 
-\chapter{Die Shell}
+\chapter{Message System / Shell}
 \label{chap:die-shell}
-Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Das Senden und Empfangen erfolgt Interrupt-gesteuert. Die Shell läuft als eigener Task und wird wie alle Tasks geschedult. Nachrichten werden über ein Message-System gesendet und Empfangen. Um zu verhindern, dass Messages verloren gehen oder Buffer überlaufen, wird die dynamische Speicherverwaltung zum verwalten der Messages und Queues verwendet. \\
+Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Das Senden und Empfangen erfolgt Interrupt-gesteuert. Ein Message System wurde implementiert, um einfach Nachrichten über USART senden und empfangen zu können. Um zu verhindern, dass Messages verloren gehen oder Buffer überlaufen, wird die dynamische Speicherverwaltung zum verwalten der Messages und Queues verwendet. Eine Shell ermöglicht das komfortable Kommunizieren mit dem XMeaga über USART. Die Shell läuft als eigener Task und wird wie alle Tasks geschedult.\\
 
 Zum Verwalten der USART Nachrichten werden verschiedene Buffer verwendet, welche in der Dateien \lstinline$usart_message.h$ und \lstinline$usart_queue.h$ deklariert sind.
 
 \section{Message Queues}
 \label{subsec:shell-queue}
-Zum Empfangen und Senden werden Message Queues (verkettete Listen) vom Typ \lstinline$messageQueue$ verwendet.
+Zum Empfangen und Senden werden Message Queues (verkettete Listen) vom Typ \lstinline$messageQueue$ verwendet.\\
 
 \begin{lstlisting}
 struct messageQueue
@@ -504,25 +504,27 @@ struct messageQueue
 };
 \end{lstlisting}
 
-Zum Erzeugen und Zerstören von message queues werden die Funktionen
+Zum Erzeugen und Zerstören von Message Queues werden die Funktionen
 
 \begin{lstlisting}
 messageQueue *getMessageQueue();
 void destroyMessageQueue(messageQueue *queue);
 \end{lstlisting}
 
-verwendet. Diese verwenden intern zum reservieren/freigeben des Speichers der queue die  \lstinline$allocateMemory()$ und \lstinline$freeMemory()$ Funktionen. Beim freigeben des Speichers der queue wird auch der Speicher aller Elemente in der Queue freigegeben. Zum Hinzufügen und Auslesen von Messages aus einer queue werden die Funktionen
+verwendet. Diese verwenden intern zum Reservieren/Freigeben des Speichers der Queue die dynamische Speicherverwaltung. Beim Freigeben des Speichers der Queue wird auch der Speicher aller Elemente in der Queue freigegeben.\\
+
+Zum Hinzufügen und Auslesen von Messages aus einer Queue werden die Funktionen
 
 \begin{lstlisting}
 void enqueue(messageQueue *queue, message *msg);
 message *dequeue(messageQueue *queue);
 \end{lstlisting}
 
-benutzt. Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message queue verwaltet wird und keine Kopie dieser message gemacht wird. Es wird kein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message benötigt.
+benutzt. Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message Queue verwaltet wird und keine Kopie dieser Message gemacht wird. Es wird kein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message benötigt.
 
 \section{Messages}
 \label{subsec:shell-messages}
-Um Daten zu senden und zu empfangen werden Messages verwendet.
+Um Daten zu senden und zu empfangen werden Messages verwendet.\\
 
 \begin{lstlisting}
 struct message
@@ -543,39 +545,35 @@ Die Variable type bestimmt dabei, ob die Art des Messages.
 	\item RX\_MSG: Messages um über USART zu empfangen.
 \end{itemize}
 
-Die Variable stackIndex wird verwendet, um eine Message als Stack benutzen zu können. je nach MSG\_TYPE können Byte-weise Daten gepusht oder gepopt werden. Dies erlaubt ein komfortables senden und empfangen bei der USART Kommunikation, da über USART immer nur 1 Byte gesendet/empfangen werden kann. Beispielsweise kann in jedem USART data-receive interrupt jeweils ein Byte auf die aktuelle Message gepusht werden. Es entfällt das manuelle Berechnen des nächsten freien Bytes in der Message.
+Die Variable stackIndex wird verwendet, um eine Message als Stack benutzen zu können. je nach MSG\_TYPE können Byte-weise Daten gepusht oder gepopt werden. Dies erlaubt ein komfortables Senden und Empfangen bei der USART Kommunikation, da über USART immer nur 1 Byte gesendet/empfangen werden kann. Beispielsweise kann in jedem USART data-receive interrupt jeweils ein Byte auf die aktuelle Message gepusht werden. Es entfällt das manuelle Berechnen des nächsten freien Bytes in der Message. Um Daten zu Senden, können je nach bedarf verschiedene Funktionen benutzt werden.\\
 
-Um Daten zu Senden, können je nach bedarf verschiedene Funktionen benutzt werden.
+Wie bei Message Queues gibt es jeweils eine Funktion zum erzeugen und zerstören von Messages. Es wird ebenfalls die dynamische Speicherverwaltung verwendet. \lstinline$getMessage()$ bekommt als Parameter die Größe der Message in Bytes, sowie den Message Typ, welcher den Stack-Zugriff vorgibt.\\
 
 \begin{lstlisting}
 message *getMessage(int dataSize, MSG_TYPE type);
 void destroyMessage(message *msg);
 \end{lstlisting}
 
-Wie bei Message Queues gibt es jeweils eine Funktion zum erzeugen und zerstören von Messages. Es wird ebenfalls die dynamische Speicherverwaltung verwendet. \lstinline$getMessage()$ bekommt als Parameter die Größe der Message in Bytes, sowie den Message Typ, welcher den Stack-zugriff vorgibt.
+Zum setzen des Inhalts der Message wird \lstinline$setMessageData()$ verwendet. Die übergebenen Daten werden dabei in den Message Buffer kopiert.\\
 
 \begin{lstlisting}
 int setMessageData(message *msg, char *data, int size);
 \end{lstlisting}
 
-Zum setzen des Inhalts der Message wird \lstinline$setMessageData()$ verwendet. Die übergebenen Daten werden dabei in den message buffer kopiert.
-
-Um die Daten einer message auszulesen werden die folgenden Funktionen verwendet:
+Um die Daten einer Message auszulesen werden die folgenden Funktionen verwendet:\\
 
 \begin{lstlisting}
 char getMessageDataCopy(message *msg, char **data, int *size);
 char *getMessageData(message *msg);
 \end{lstlisting}
 
-\lstinline$getMessageDataCopy()$ liefert eine Kopie der Daten zurück (char **data). Das bedeutet, diese Daten müssen nach Benutzung mit \lstinline$freeMemory()$  freigegeben werden. \lstinline$getMessageData$ liefert einen Pointer auf die Daten der Message zurück. Dieser Speicher darf nicht mit \lstinline$freeMemory()$  freigegeben werden. Auch muss beim Zugriff auf diese Adresse sichergestellt sein, dass die dazugehörige Message noch nicht gelöscht wurde.
-
-wird eine Kopie einer Message inklusive Daten benötigt kann folgende Funktion verwendet werden:
+\lstinline$getMessageDataCopy()$ liefert eine Kopie der Daten zurück (char **data). Das bedeutet, diese Daten müssen nach Benutzung mit \lstinline$freeMemory()$  freigegeben werden. \lstinline$getMessageData$ liefert einen Pointer auf die Daten der Message zurück. Dieser Speicher darf nicht mit \lstinline$freeMemory()$  freigegeben werden. Auch muss beim Zugriff auf diese Adresse sichergestellt sein, dass die dazugehörige Message noch nicht gelöscht wurde. Wird eine Kopie einer Message inklusive Daten benötigt kann folgende Funktion verwendet werden:\\
 
 \begin{lstlisting}
 message *copyMessage(message *msg);
 \end{lstlisting}
 
-Vorgang zum Erzeugen von Messages:
+Vorgang zum Erzeugen von Messages:\\
 
 \begin{lstlisting}
 char character = '\n';
@@ -594,18 +592,14 @@ destroyMessage(msg);
 
 \section{USART Kommunikation}
 \label{subsec:shell-communication}
-Die Datei \lstinline$usart.h$ bietet Funktionen zum initialisieren der USART-Schnittstelle sowie zum Senden und Empfangen von Messages.
-
-Um direkt messages zu empfangen/senden werden folgende Funktionen verwendet:
+Die Datei \lstinline$usart.h$ bietet Funktionen zum Initialisieren der USART-Schnittstelle sowie zum Senden und Empfangen von Messages. Um direkt Messages zu empfangen/senden werden folgende Funktionen verwendet:\\
 
 \begin{lstlisting}
 void sendMessageUsart(message *msg);
 message *receiveMessageUsart();
 \end{lstlisting}
 
-Jede Empfangene Message besteht aus einem Null-terminierten String. Nach einem Aufruf von \lstinline$sendMessageUsart()$ wird die Message vom usart system verwaltet. Der Benutzer sollte nicht mehr auf die Message zugreifen. Für die verwaltung (Speicher freigeben) der zurückgelieferten Message von \lstinline$receiveMessageUsart()$ ist der Benutzer zuständig.
-
-Zusätzlich können zum Senden von Strings komfortablere Funktionen verwendet werden.
+Jede Empfangene Message besteht aus einem Null-terminierten String. Nach einem Aufruf von \lstinline$sendMessageUsart()$ wird die Message vom USART System verwaltet. Der Benutzer sollte nicht mehr auf die Message zugreifen. Für die Verwaltung (Speicher freigeben) der zurückgelieferten Message von \lstinline$receiveMessageUsart()$ ist der Benutzer selbst zuständig. Zusätzlich können zum Senden von Strings komfortablere Funktionen verwendet werden. Der Benutzer muss hierbei selbst keine Messages erzeugen.\\
 
 \begin{lstlisting}
 void print(char *string);
@@ -616,9 +610,11 @@ void printChar(char character);
 
 \section{USART Kommunikation Implementierung}
 \label{subsec:shell-communication-impl}
-Die USART Kommunikation erfolgt interruptgesteuert. Folgender Frame Format wird verwendet:
+Die USART Kommunikation erfolgt Interrupt-gesteuert. Folgender Frame Format wird verwendet:\\
 
-Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART Geräte können über die folgenden Defines eingestellt werden:
+\lstinline{Asynchronous Communicatin Mode, no parity, 1 Stop Bit, 8 Bit data}\\
+
+Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART Geräte können über die folgenden Defines eingestellt werden:\\
 
 \begin{lstlisting}
 #define USART USARTC0
@@ -626,31 +622,17 @@ Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART G
 #define BAUDRATE 115200
 \end{lstlisting}
 
-Zum senden und emfangen werden Low-Level Interrupts verwendet. Wurde ein Byte empfangen, wird der USARTC0\_RXC\_vect Interrupt getriggert. Können Daten in den usart hardware buffer kopiert werden, wird der USARTC0\_DRE\_vect Interupt getriggert (data register empty). Empfangene und zu sendene Messsages werden in Message queues gespeichert. Da das Message System mit dynamischer Speicherverwaltung arbeitet, können keine Messages verloren gehen.
+Zum Senden und Emfangen werden Low-Level Interrupts verwendet. Wurde ein Byte empfangen, wird der USARTC0\_RXC\_vect Interrupt getriggert. Können Daten in den USART hardware Buffer kopiert werden, wird der USARTC0\_DRE\_vect Interupt getriggert (data register empty). Empfangene und zu sendende Messages werden in Message Queues gespeichert. Da das Message System mit dynamischer Speicherverwaltung arbeitet, können keine Messages verloren gehen.\\
 
 \begin{lstlisting}
 static messageQueue *rxQueue;
 static messageQueue *txQueue;
 \end{lstlisting}
 
-Der Zugriff auf die Message queues wird durch interrupt sperren gesichert, da von Tasks sowie von Interrupts auf diese zugegriffen wird.
+Der Zugriff auf die Message Queues wird durch Interrupt-sperren gesichert, da von Tasks sowie von Interrupts auf diese zugegriffen wird. Beide USART Interrupts arbeiten auf dem System Stack.
 
-Empfangen von Messages: \\
-Es werden so lange bytes empfangen und in die Variable current rcv msg gepusht, bis ein new line erkannt wurde oder eine bestimmte MAX\_MSG\_länge erreicht wurde. Erst dann wird eine message in die receive queue hinzugefügt und es wird eine neuie currentrcvMessage erzeugt. Die mesasge emofangs routine prüft zusätzlich auf verschiedene escape charactere wie DEL, CR, ESC, usw,. Um zu vergindern dass der command prompt gelöscht werden kann wird bei DEL die cursor position abgefragt.
-
-TODO: StripMsg
-
-Senden von Messages: \\
-Senden erfolgt analog zum empfangen. Die variable currentSendMsg enthält die gerade zu senden message. Im DRE Interruopt wird immer 1 Byte von dieser message gepopt. Wurde diese vollständig gesdendet kann der speicher der message freiegeben werden und es kann die nächste msg aus der send queue gesendet werden.
-
-Beide USART Interruopts arbeiten auf dem System stack.
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=450px]{images/UsartOut.png}
-	\caption{USART Send}
-	\label{fig:usart_send}
-\end{figure}
+\subsection{Empfangen von Messages}
+Es werden so lange Bytes empfangen und in die Message \lstinline{currentReceiveMessage} gepusht, bis eine neue Zeile erkannt wurde oder eine bestimmte maximale Länge der Message (\lstinline{MAX_RECEIVE_MSG_SIZE}) erreicht wurde. Erst dann wird eine Message in die receive queue hinzugefügt und es wird eine neue \lstinline{currentReceiveMessage} erzeugt. Die Empfangsroutine prüft zusätzlich auf verschiedene escape Sequenzen wie DEL, CR, ESC, usw,. Um zu verhindern dass der command prompt gelöscht werden kann wird bei DEL die cursor position abgefragt. Verschiedene Funktionen garantieren, dass die empfangene Message immer nur die minimale Größe besitzt. Bild \ref{fig:usart_receive} zeigt den groben Ablauf beim Empfangen von Nachrichten.
 
 \begin{figure}[H]
 	\centering
@@ -659,11 +641,28 @@ Beide USART Interruopts arbeiten auf dem System stack.
 	\label{fig:usart_receive}
 \end{figure}
 
+\subsection{Senden von Messages}
+Senden erfolgt analog zum Empfangen. Die variable \lstinline{currentSendMsg} enthält die gerade zu sendende Message. Im DRE Interrupt wird immer 1 Byte von dieser Message gepopt. Wurde diese vollständig gesendet kann der Speicher der Message freigegeben werden und es kann die nächste Message aus der send queue gesendet werden. Der DRE Interrupt wird aktiviert, sobald eine Nachricht gesendet werden soll. Wurden alle Nachrichten aus der Queue gesendet, wird dieser deaktiviert. Bild \ref{fig:usart_send} zeigt das Versenden von Nachrichten.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=450px]{images/UsartOut.png}
+	\caption{USART Send}
+	\label{fig:usart_send}
+\end{figure}
+
 \section{Shell Task}
 \label{subsec:shell-task}
-Die Shell Tasks wird wie alle anderen tasks geschedult und verarbeitet und inmterpretiert die empfangenen messages.
+Die Shell Tasks wird wie alle anderen Tasks geschedult und verarbeitet und interpretiert die empfangenen Messages. In der Headerdatei \lstinline{shell.c} kann der command prompt der Shell konfiguriert werden. Die Funktion\\
 
-Die Funjktion wairForMessgae wird verwendet um aktiv auf eine message zu warten:
+\begin{lstlisting}
+void setMessageCallback(void (*processMessageCB)(char *msg));
+\end{lstlisting}
+
+erlaubt das Setzen einer Callback-Funktion. Die Shell-Task verarbeitet die Empfangenen Daten und verarbeitet ggf. die Befehle. Alle nicht verarbeiteten Daten werden an die Callback-Funktion übergeben.
+
+\subsection{Implementierung}
+Die Funktion \lstinline{waitForMessage} wird verwendet um aktiv auf eine Message zu warten:
 
 \begin{lstlisting}
 static message *waitForMessage()
@@ -680,7 +679,7 @@ static message *waitForMessage()
 }
 \end{lstlisting}
 
-Wurde eine msg empfangen wird parseMessage aufgerufen, welche die mesasgae interpriertiert. Folgende befehle sind verfügbar:
+Wurde eine Message empfangen wird \lstinline{parseMessage} aufgerufen, welche die Message verarbeitet. Folgende befehle sind verfügbar:
 
 \begin{itemize}
 	\item ledOn Schaltet die led1 an
@@ -699,7 +698,8 @@ Wurde eine msg empfangen wird parseMessage aufgerufen, welche die mesasgae inter
 \label{chap:fazit}
 
 \begin{thebibliography}{999}
-	http://www.nongnu.org/avr-libc/user-manual/malloc.html
+\bibitem{bib-memory}
+http://www.nongnu.org/avr-libc/user-manual/malloc.html
 \end{thebibliography}
 
 \cleardoublepage

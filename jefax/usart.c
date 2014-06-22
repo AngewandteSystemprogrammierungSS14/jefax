@@ -80,25 +80,25 @@ void stopUsart()
 
 void sendMessageUsart(message *msg)
 {
-	uint8_t irStatus = enterAtomicBlock();
-	
+    uint8_t irStatus = enterAtomicBlock();
+
     enqueue(txQueue, msg);
 
     // Enable DRE IR
     USART.CTRLA |= USART_DREINTLVL_LO_gc;
-	
-	exitAtomicBlock(irStatus);
+
+    exitAtomicBlock(irStatus);
 }
 
 message *receiveMessageUsart()
 {
-	uint8_t irStatus = enterAtomicBlock();
-	
+    uint8_t irStatus = enterAtomicBlock();
+
     message *msg = dequeue(rxQueue);
-	
-	exitAtomicBlock(irStatus);
-	
-	return msg;
+
+    exitAtomicBlock(irStatus);
+
+    return msg;
 }
 
 void printChar(char character)
@@ -127,8 +127,8 @@ void print(char *string)
 
 static message *stripMessage(message *msg)
 {
-    message *ret = getMessage(msg->stackIndex, RX_MSG);
-    setMessageData(ret, getMessageData(msg), msg->stackIndex);
+    message *ret = getMessage(getMessageStackIndex(msg), RX_MSG);
+    setMessageData(ret, getMessageData(msg), getMessageStackIndex(msg));
 
     return ret;
 }
@@ -276,27 +276,27 @@ static void send()
 
 ISR(USARTC0_RXC_vect, ISR_NAKED)
 {
-	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
-	
-	ENTER_SYSTEM_STACK();
-	
-	receive();
-	
-	SP = (uint16_t) (getRunningTask()->stackpointer);
-	RESTORE_CONTEXT();
-	reti();
+    SAVE_CONTEXT();
+    getRunningTask()->stackpointer = (uint8_t *) SP;
+
+    ENTER_SYSTEM_STACK();
+
+    receive();
+
+    SP = (uint16_t) (getRunningTask()->stackpointer);
+    RESTORE_CONTEXT();
+    reti();
 }
 
 ISR(USARTC0_DRE_vect, ISR_NAKED)
 {
-	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
-	
-	ENTER_SYSTEM_STACK();
-	
+    SAVE_CONTEXT();
+    getRunningTask()->stackpointer = (uint8_t *) SP;
+
+    ENTER_SYSTEM_STACK();
+
     send();
-	
+
     SP = (uint16_t) (getRunningTask()->stackpointer);
     RESTORE_CONTEXT();
     reti();
