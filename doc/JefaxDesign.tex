@@ -84,15 +84,15 @@ Ein Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese besteh
 
 Der Stack besitzt eine feste Größe, welche durch das define \lstinline$STACK_SIZE$ festgelegt werden kann. Wichtig zu wissen ist hierebi, dass der Stack sich nicht im Compiler-spezifischen Stackbereich befindet (stack section - beginnend von der letzten Adresse im SRAM), sondern in der data  Section.
 
-\subsection{API}
+\section{API}
 \label{subsec:tasks-api}
-Zum erzeugen einer Task wird die Funktion \lstinline$initTask()$ verwendet. Aufgabe dieser Funktion ist es, den Stack sowie den Stackpointer zu initialisieren.
+Zum Erzeugen einer Task wird die Funktion \lstinline$initTask()$ verwendet. Aufgabe dieser Funktion ist es, den Stack sowie den Stackpointer zu initialisieren.
 
 \begin{lstlisting}
 void initTask(task_t *task);
 \end{lstlisting}
 
-Um zu bestimmen, welche Tasks geschedult werden sollen, wird das Feld \lstinline$TASKS$ in \lstinline$jefax.x$ verwendet. Ein Benutzer kann hier die zu schedulenden Tasks eintragen. Als letztes Element in dem Feld muss sich immer ein leeres \lstinline$task_t$ Element befinden. Optional kann das Makro \lstinline$SHELL_TASK$ zum aktivieren der Shell verwendet werden.
+Um zu bestimmen, welche Tasks geschedult werden sollen, wird das Feld \lstinline$TASKS$ in \lstinline$jefax.c$ verwendet. Ein Benutzer kann hier die zu schedulenden Tasks eintragen. Als letztes Element in dem Feld muss sich immer ein leeres \lstinline$task_t$ Element befinden. Optional kann das Makro \lstinline$SHELL_TASK$ zum aktivieren der Shell verwendet werden.
 
 \begin{lstlisting}[title=jefax.c]
 task_t TASKS[] = {
@@ -112,7 +112,7 @@ Ein Eintrag im TASKS Feld besteht aus:
 \item Stack (muss immer {0} sein)
 \end{itemize}
 
-\subsection{Implementierung}
+\section{Implementierung}
 \label{subsec:tasks-impl}
 Da bei den XMega Microcontrollern der Stack von der höchsten zur niedrigsten Adresse wächst, wird der Stackpointer mit
 
@@ -387,9 +387,9 @@ Daraufhin werden alle Timer darauf überprüft, ob sie abgelaufen sind. Ist dies
 
 \chapter{Dynamische Speicherverwaltung}
 \label{chap:dynamische-speicherverwaltung}
-Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden.
+Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden. Freigegebener Speicher wird in einer Free List verwaltet, bei weiteren Speicheranforderungen wird zunächst der Speicher der Free List verwendet.
 
-\subsection{API}
+\section{API}
 \label{subsec:mem-api}
 Um Speicher zu reservieren, wird die Funktion \lstinline$allocateMemory()$ verwendet. Als Argument bekommt diese die Größe des Speicherbereiches in Byte. Der Rückgabewert ist bei Erfolg ein Pointer auf den allokierten Speicherbereich. Bei einem Fehler bei der Speicheranforderung (kein Speicher mehr verfügbar) ist dieser 0.
 
@@ -424,11 +424,9 @@ Die Felder haben folgende Bedeutung:
 	\item freeListEntries: Anzahl an Einträgen in der Free-List
 \end{itemize}
 
-\subsection{Implementierung}
+\section{Implementierung}
 \label{subsec:mem-impl}
-Die dynamische Speicherverwaltung ist lose an die avr-gcc malloc Implementierung gehalten. Es wurde darauf geachtet, möglichst wenig Overhead durch erforderliche Zusatzinformationen zu erzeugen.
-
-Bei einem Aufruf von \lstinline$allocateMemory()$ wird Speicher auf dem Heap reserviert. Der Heap beginnt nach der .bss section und wächst richtung Stack.
+Die dynamische Speicherverwaltung ist lose an die avr-gcc malloc Implementierung gehalten. Es wurde darauf geachtet, möglichst wenig Overhead durch erforderliche Zusatzinformationen zu erzeugen. Bei einem Aufruf von \lstinline$allocateMemory()$ wird Speicher auf dem Heap reserviert. Der Heap beginnt nach der .bss section und wächst richtung Stack (\ref{fig:sections}).
 
 \begin{figure}[H]
 	\centering
@@ -436,9 +434,6 @@ Bei einem Aufruf von \lstinline$allocateMemory()$ wird Speicher auf dem Heap res
 	\caption{Sections}
 	\label{fig:sections}
 \end{figure}
-
-http://www.nongnu.org/avr-libc/user-manual/malloc.html
-
 
 Der Anfang des Heaps wird über das Linker Script an den Compiler/Linker übergeben. Die Start-Adresse kann über die Variable \lstinline$__heap_start$ abgefragt werden.
 
@@ -459,6 +454,15 @@ typedef struct memoryArea {
 
 Vor jedem angeforderten Speicherbereich wird die Größe dieses Speicherbereichs (Variable size) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable next erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Restriktion stellt die size Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, ist der Overhead pro Speicherreservierung die Größe dieser Variable (1 Byte). \\
 
+Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ memoryArea) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speichblöcke wurde wieder freigegen und befinden sich in der Free List. In jedem Speicherbereich sind die Variablen \lstinline{size} und \lstinline{next} abgebildet (benötigt für die Kontrollinformationen). Beim reservieren des Speicherblocks blau wurde die Adresse der Variable next an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline{size} (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline{next} zeigt jeweils auf den nächsten Eintrag der Free List.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=450px]{images/memory.png}
+	\caption{Dynamische Speicherverwaltung}
+	\label{fig:memory}
+\end{figure}
+
 Beim reservieren von Speicher wird zunächst der verfügbare Speicher sowie auf Stack-Kollision geprüft. Kann Speicher reserviert werden, wird die Adresse des nächsten verfügbaren Speichers auf ein Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der next Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
 
 \begin{lstlisting}[title=memory.c]
@@ -472,13 +476,14 @@ nextFreeMemory += size + sizeof(uint8_t);
 return &(newMemoryArea->next);
 \end{lstlisting}
 
-Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht aus einer verketteten Liste von \lstinline$memoryArea$ Elementen. Bei der Speicheranforderungen wird zuerst die Free-List betrachtet. Wird ein passender Eintrag in der Free-List gefunden, wird dieser aus der Free-List entfernt und dem Benutzer zurück geliefert. Wird kein passender Eintrag gefunden, wird überprüft, ob durch ein größeres Element in der Free-List die Speicheranforderung erfüllt werden kann. Ist dies nicht der Fall, wird neuer Speicher aus dem Heap zurück geliefert.
-
-Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann.
+Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht aus einer verketteten Liste von \lstinline$memoryArea$ Elementen. Bei der Speicheranforderungen wird zuerst die Free-List betrachtet. Wird ein passender Eintrag in der Free-List gefunden, wird dieser aus der Free-List entfernt und dem Benutzer zurück geliefert. Wird kein passender Eintrag gefunden, wird überprüft, ob durch ein größeres Element in der Free-List die Speicheranforderung erfüllt werden kann. Ist dies nicht der Fall, wird neuer Speicher aus dem Heap zurück geliefert.\\
 
 Da Heap und Stack aufeinander zu wachsen, besteht hier die Gefahr einer Kollision. Um dies zu vermeiden, wird bei Speicheranforderungen auf eine Kollision überprüft. Der Heap kann nicht weiter als bis zu einem festgelegten Abstand zum Stack wachsen. Dieser Abstand bestimmt die Variable \lstinline$margin$. Ist diese Grenze erreicht, kann \lstinline$allocateMemory()$ keinen Speicher mehr allozieren und liefert 0 zurück. Obwohl es keinen freien Speicher mehr auf dem Heap gibt, kann die Anwendung weiterhin mit dem Stack (der noch margin Bytes frei hat) arbeiten und stürzt nicht ab.
 
 Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu schützen, werden beim allozieren und freigeben Interrupts gesperrt.
+
+\section{Verbesserungsmöglichkeiten}
+Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann.
 
 \chapter{Die Shell}
 \label{chap:die-shell}
@@ -486,7 +491,7 @@ Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Da
 
 Zum Verwalten der USART Nachrichten werden verschiedene Buffer verwendet, welche in der Dateien \lstinline$usart_message.h$ und \lstinline$usart_queue.h$ deklariert sind.
 
-\subsection{Message Queues}
+\section{Message Queues}
 \label{subsec:shell-queue}
 Zum Empfangen und Senden werden Message Queues (verkettete Listen) vom Typ \lstinline$messageQueue$ verwendet.
 
@@ -515,7 +520,7 @@ message *dequeue(messageQueue *queue);
 
 benutzt. Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message queue verwaltet wird und keine Kopie dieser message gemacht wird. Es wird kein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message benötigt.
 
-\subsection{Messages}
+\section{Messages}
 \label{subsec:shell-messages}
 Um Daten zu senden und zu empfangen werden Messages verwendet.
 
@@ -587,7 +592,7 @@ setMessageData(msg, &character, 1);
 destroyMessage(msg);
 \end{lstlisting}
 
-\subsection{USART Kommunikation}
+\section{USART Kommunikation}
 \label{subsec:shell-communication}
 Die Datei \lstinline$usart.h$ bietet Funktionen zum initialisieren der USART-Schnittstelle sowie zum Senden und Empfangen von Messages.
 
@@ -609,7 +614,7 @@ void printChar(char character);
 
 \lstinline$print$ erwartet als Paramter einen Null-terminierten String, welcher in den internen Buffer kopiert wird.
 
-\subsection{USART Kommunikation Implementierung}
+\section{USART Kommunikation Implementierung}
 \label{subsec:shell-communication-impl}
 Die USART Kommunikation erfolgt interruptgesteuert. Folgender Frame Format wird verwendet:
 
@@ -640,7 +645,21 @@ Senden erfolgt analog zum empfangen. Die variable currentSendMsg enthält die ge
 
 Beide USART Interruopts arbeiten auf dem System stack.
 
-\subsection{Shell Task}
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=450px]{images/UsartOut.png}
+	\caption{USART Send}
+	\label{fig:usart_send}
+\end{figure}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=450px]{images/UsartIn.png}
+	\caption{USART Receive}
+	\label{fig:usart_receive}
+\end{figure}
+
+\section{Shell Task}
 \label{subsec:shell-task}
 Die Shell Tasks wird wie alle anderen tasks geschedult und verarbeitet und inmterpretiert die empfangenen messages.
 
@@ -671,7 +690,7 @@ Wurde eine msg empfangen wird parseMessage aufgerufen, welche die mesasgae inter
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=300px]{images/shell.png}
+	\includegraphics[width=450px]{images/shell.png}
 	\caption{jefax shell}
 	\label{fig:shell}
 \end{figure}
@@ -680,7 +699,7 @@ Wurde eine msg empfangen wird parseMessage aufgerufen, welche die mesasgae inter
 \label{chap:fazit}
 
 \begin{thebibliography}{999}
-	
+	http://www.nongnu.org/avr-libc/user-manual/malloc.html
 \end{thebibliography}
 
 \cleardoublepage
