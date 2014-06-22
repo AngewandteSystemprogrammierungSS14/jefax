@@ -1,0 +1,690 @@
+\documentclass[fontsize=12pt, toc=bibliography, notitlepage]{scrreprt}
+
+\usepackage[ngerman]{babel}
+\usepackage{ucs}
+\usepackage[utf8x]{inputenc}
+\usepackage[bookmarksopen=true,
+			bookmarks=true,
+			plainpages=false,
+        	pdfpagelabels=true,
+			colorlinks=true,
+			linkcolor=black,
+			citecolor=black,
+        	filecolor=black,
+        	urlcolor=blue]{hyperref}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{tikz}
+\usepackage[Q=yes]{examplep}
+\usepackage[hypcap]{caption}
+
+\title{Jefax}
+\subtitle{Ein Kernel für Atmels XMega}
+\author{FaMe \and JeGa}
+\date{\today \\ HTWG Konstanz}
+
+\lstdefinestyle{MyCStyle}{
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  frame=single,
+  captionpos=b,
+  numbers=left,
+  xleftmargin=\parindent,
+  language=C,
+  showstringspaces=false,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\bfseries\color{green!40!black},
+  commentstyle=\itshape\color{purple!40!black},
+  identifierstyle=\color{blue},
+  stringstyle=\color{orange}
+}
+\lstset{escapechar=@,style=MyCStyle}
+
+\newcommand{\refnn}[1]{\ref{#1} \nameref{#1}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Jefax ist ein einfacher Betriebssystemkernel, der preemptives Scheduling und damit Multitasking realisiert. Zusätzlich sind einfache Synchronisierungsmechanismen wie Mutex und Condition Variable implementiert. Die dynamische Speicherverwaltung erlaubt die Entwicklung flexibler Datenstrukturen und Tasks. Über die serielle UART Schnittstelle ist eine Shell zur Ausgabe von ASCII Strings verfügbar.
+\end{abstract}
+\clearpage
+
+\tableofcontents
+
+\chapter{Tasks}
+\label{chap:tasks}
+Wie in einem multitasking Betriebssystem üblich, können vom Benutzer verschiedene Tasks erzeugt werden die vom Scheduler geschedult werden. Intern werden Tasks für den Dispatcher sowie optional für die Shell verwendet. Jede Tasks besitzt ihren eigenen Task-Kontext. Bei einem Kontextwechsel wird dieser gesichert bzw. wiederhergestellt. Verschiedene Schedulingverfahren erlauben das quasi-parallele Ausführen der Tasks. \\
+
+\begin{lstlisting}[title=task.h]
+typedef struct {
+	int (*function)();
+
+	unsigned int priority;
+	volatile taskState_t state;
+
+	uint8_t *stackpointer;
+
+	uint8_t stack[STACK_SIZE];
+} task_t;
+\end{lstlisting}
+
+Ein Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese besteht aus:
+
+\begin{itemize}
+\item Pointer auf die Task Funktion
+\item Priorität der Tasks
+\item Taskstatus (READY, RUNNING, BLOCKING)
+\item Stackpointer, der auf die nächste freie Speicheradresse auf dem Stack zeigt.
+\item Ein Feld von \lstinline$uint8_t$, welches den Stack darstellt.
+\end{itemize}
+
+Der Stack besitzt eine feste Größe, welche durch das define \lstinline$STACK_SIZE$ festgelegt werden kann. Wichtig zu wissen ist hierebi, dass der Stack sich nicht im Compiler-spezifischen Stackbereich befindet (stack section - beginnend von der letzten Adresse im SRAM), sondern in der data  Section.
+
+\subsection{API}
+\label{subsec:tasks-api}
+Zum erzeugen einer Task wird die Funktion \lstinline$initTask()$ verwendet. Aufgabe dieser Funktion ist es, den Stack sowie den Stackpointer zu initialisieren.
+
+\begin{lstlisting}
+void initTask(task_t *task);
+\end{lstlisting}
+
+Um zu bestimmen, welche Tasks geschedult werden sollen, wird das Feld \lstinline$TASKS$ in \lstinline$jefax.x$ verwendet. Ein Benutzer kann hier die zu schedulenden Tasks eintragen. Als letztes Element in dem Feld muss sich immer ein leeres \lstinline$task_t$ Element befinden. Optional kann das Makro \lstinline$SHELL_TASK$ zum aktivieren der Shell verwendet werden.
+
+\begin{lstlisting}[title=jefax.c]
+task_t TASKS[] = {
+    {counterTask2, 2, READY, 0, {0}},
+    SHELL_TASK,
+    {0, 0, READY, 0, {0}}
+};
+\end{lstlisting}
+
+Ein Eintrag im TASKS Feld besteht aus:
+
+\begin{itemize}
+\item Pointer auf die Task-Funktion
+\item Priorität der Task
+\item Initialer Status der Tasks (meist READY)
+\item Stackpointer (muss immer 0 sein)
+\item Stack (muss immer {0} sein)
+\end{itemize}
+
+\subsection{Implementierung}
+\label{subsec:tasks-impl}
+Da bei den XMega Microcontrollern der Stack von der höchsten zur niedrigsten Adresse wächst, wird der Stackpointer mit
+
+\begin{lstlisting}
+task->stackpointer = task->stack + STACK_SIZE - 1;
+\end{lstlisting}
+
+initialisiert. Anschließend wird die Adresse der Task Funktion auf dem Stack abgelegt (bei den XMega128 3 Byte). Zuletzt werden noch die 32 Arbeitsregister sowie das Statusregister auf dem Stack benötigt.
+
+Um vom Dispatcher/Scheduler/... auf die globale TASKS Struktur zuzugreifen, wird dieser in den jeweiligen Dateien als extern deklariert.
+
+\begin{lstlisting}
+extern task_t TASKS[];
+\end{lstlisting}
+
+\chapter{Scheduling}
+\label{chap:scheduling}
+Essentieller Bestandteil von Jefax ist das Scheduling. Die Tasks im Kernel laufen preemptiv, d.h. sie können unterbrochen und ausgewechselt werden. Damit die Tasks ihre Unterbrechung nicht bemerken, wird der Kontext der unterbrochenen Task gespeichert (siehe \refnn{sec:dispatcher}.\\
+Die 2 Kernbestandteile des Scheduling sind der Dispatcher und der Scheduler. Der Standardscheduler realisiert ein prioritätengesteuertes Round-Robin-Verfahren. Tasks erhalten eine feste Zeitscheibe, in der sie die CPU erhalten, danach werden sie durch den Dispatcher unterbrochen.
+
+\section{Dispatcher}
+\label{sec:dispatcher}
+Der Dispatcher übernimmt das auswechseln der Tasks. Kernteil des Dispatcher ist dabei ein Timerinterrupt. Der Timer wird initial auf einen bestimmten Wert gestellt, welcher die Zeitscheibe jeder Task repräsentiert. Dieser kann jedoch auch manuell, nach der Initialisierung des Dispatcher, mit
+
+\begin{lstlisting}
+void setInterruptTime(unsigned int p_msec);
+\end{lstlisting}
+
+gesetzt werden.\\
+
+Während der Interrupt Service Routine (ISR) wird zuerst der Kontext der unterbrochenen Task gesichert. Zum Kontext gehören folgende Speicherbereiche:
+
+\begin{itemize}
+	\item Sämtliche Register des XMega (R0 bis R31)
+	\item Das Statusregister (SREG)
+	\item Der Stackpointer
+\end{itemize}
+
+Die Register sowie das SREG werden auf dem Task eigenen Stack abgelegt. Der Stackpointer wiederrum wird direkt im Task Control Block (TCB) gesichert. Außerdem wird beim Auftritt der ISR der Program Counter (PC) automatisch auf dem Stack der Task abgelegt.\\
+
+Nach dem Sichern des Kontext wird in der ISR die Dispatcher Task geladen. Dabei handelt es sich nicht um eine Task, die vom Scheduler berücksichtigt wird. Der Dispatcher besitzt lediglich einen eigenen TCB und damit auch einen Stack, auf dem er arbeiten kann.\\
+
+Folgender Code Ausschnitt zeigt die ISR:
+
+\begin{lstlisting}[title=dispatcher.c]
+ISR(TCC0_OVF_vect, ISR_NAKED)
+{
+	SAVE_CONTEXT();
+	getRunningTask()->stackpointer = (uint8_t *) SP;
+	
+	TODO: main stack context
+	
+	// set stackpointer to default task
+	initTask(&dispatcherTask);
+	SP = (uint16_t) (dispatcherTask.stackpointer);
+	
+	DISABLE_TIMER(TCC0);
+	RESTORE_CONTEXT();
+	reti();
+}
+\end{lstlisting}
+
+In Zeile 3 und 4 wird der Kontext der aktuellen Task gesichert. Zeile 7 reinitialisiert die Dispatcher Task. Der Dispatcher soll bei jedem Aufruf von vorne beginnen, sodass ein Speichern und Widerherstellen des Kontext unnötig ist. Durch Zeile  8 und 11 wird der Kontext der Dispatcher Task geladen. Der Aufruf von \lstinline$reti()$ in Zeile 12 holt den PC vom Stack des Dispatcher und springt an diese Adresse. \lstinline$DISABLE_TIMER(TCC0)$ deaktiviert den Timer, der den Dispatcher Interrupt auslöst. So wird verhindert, dass der Dispatcher und Scheduler Zeit von der Zeitscheibe der nächsten Task verbraucht.\\
+
+Die eigentliche Taskfuntion der Dispatcher Task sieht folgender Maßen aus:
+
+\begin{lstlisting}[title=dispatcher.c]
+static int runDispatcher()
+{
+task_t* toDispatch = schedule();
+dispatch(toDispatch);
+return 0;
+}
+\end{lstlisting}
+
+Zuerst wird der Scheduler aufgerufen (Zeile 3). Dieser entscheidet, welche Task als nächstes eingewechselt werden soll (siehe \refnn{sec:scheduler}). Die erhaltene Task wird daraufhin eingewechselt (Zeile 4).\\
+
+Das Einwechseln der Task sieht dem letzten Teil der oben genannten ISR sehr ähnlich. Der Stackpointer wird auf denjenigen der ausgewählten Task gewechselt und die Register werden vom Stack geholt. Außerdem wird der Timer TCC0, der in der ISR ausgeschaltet wurde, wieder aktiviert. 
+
+\newpage
+
+\section{Scheduler}
+\label{sec:scheduler}
+Der Scheduler des Kernels entscheidet welche der vorhandenen Tasks als nächstes eingewechselt werden soll. Daher ist er entscheidend für das Verhalten des Kernels und auch dessen Performance. Der Scheduler kann zur Laufzeit durch die Funktion
+
+\begin{lstlisting}
+void setScheduler(scheduler_t *p_scheduler);
+\end{lstlisting}
+
+geändert werden. In Jefax wird der Scheduler durch die Struktur \verb|scheduler_t| repräsentiert.
+
+\begin{lstlisting}[title=scheduler.h]
+typedef struct
+{
+	void (*init)();
+	task_t* (*getNextTask)();
+	void (*taskStateChanged)(task_t*);
+	void (*taskWokeUp)(task_t*);
+	taskList_t *readyList;
+	taskList_t *blockingList;
+} scheduler_t;
+\end{lstlisting}
+
+Um einen eigenen Scheduler zu nutzen, müssen die Callback Funktionen der Struktur implementiert werden. Die Funktion \lstinline$init()$ wird aufgerufen, sobald der Scheduler als neuer Scheduler des Kernels bestimmt wurde. Dabei müssen vor allem die readyList und die blockingList so bearbeitet werden, dass der Scheduler mit den Listen arbeiten kann.\\
+
+Die Funktion \lstinline$getNextTask()$ wird vom Dispatcher aufgerufen (siehe \refnn{sec:dispatcher}) und bestimmt welche Task als nächste eingewechselt wird. Als Rückgabewert wird die einzuwechselnde Task oder NULL, wenn keine Task gefunden wurde, erwartet. Wird NULL zurückgegeben wird die sogenannte idleTask eingwechselt, die nichts tut.\\
+
+Mit dem Callback \lstinline$taskStateChanged(task_t*)$, wird dem Scheduler signalisiert, dass eine Task ihren Zustand geändert hat. Der Scheduler sollte entsprechend auf diese Änderung reagieren. Als Parameter wird die betroffene Task übergeben.\\
+
+Der Aurfruf von \lstinline$taskWokeUp(task_t*)$ scheint auf den ersten Blick dem Aufruf von \lstinline$taskStateChanged(task_t*)$ sehr zu ähneln. Jedoch gibt es einen bedeutenden Unterschied: \lstinline$taskWokeUp(task_t*)$ läuft im Interrupt Kontext, es darf also nicht auf den nächsten Timer interrupt gewartet werden (z.B. durch schlafen, yield, etc).\\
+
+Die beiden Listen readyList und blockingList werden gesetzt sobald der Scheduler mithilfe von \lstinline$setScheduler(scheduler_t*)$ als neuer Scheduler bestimmt wird. Sie beinhalten die Tasks, die den entsprechenden Zustand haben. Auf die aktuell laufende Task kann mit der Funktion
+
+\begin{lstlisting}
+task_t *getRunningTask();
+\end{lstlisting}
+
+zugegriffen werden.\\
+
+Die zentrale Funktion des Schedulers, die auch vom Dispatcher aufgerufen wird \lstinline$schedule()$ ist folgender Maßen implementiert:
+
+\begin{lstlisting}[title=scheduler.c]
+task_t* schedule()
+{
+	task_t *result;
+	runningTask = scheduler->getNextTask();
+	if(runningTask == NULL)
+		result = &idleTask;
+	else
+		result = runningTask;
+	result->state = RUNNING;
+	return result;
+}
+\end{lstlisting}
+
+Zuerst wird die nächste Task durch den Aufruf des Callbacks \lstinline$getNextTask()$ des aktuellen Schedulers ausgewählt (Zeile 4). Die Variable runningTask ist dabei global definiert und stellt die aktuell laufende Task dar.\\
+
+In Zeile 5 bis 8 wird überprüft, ob der Scheduler eine lauffähige Task gefunden hat. Dies wird durch den Rückgabewert NULL des Callbacks signalisiert. Wird keine Task gefunden, wird die sogenannte idleTask dem Dispatcher zum einwechseln gegeben.\\
+
+Der Rückgabewert result (siehe Zeile 3) der Funktion stellt schlussendlich die Task dar, die vom Dispatcher eingewechselt wird (vergleiche \refnn{sec:dispatcher}).
+
+\subsection{Zustandsautomat}
+\label{subsec:zustandsautomat}
+In Jefax gibt es 3 Taskzustände: ready, blocking, running. Der Übergang zwischen diesen Zuständen wird in \autoref{fig:zustandsautomat} dargestellt.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=200px]{images/Zustandsautomat.png}
+	\caption{Zustandsautomat}
+	\label{fig:zustandsautomat}
+\end{figure}
+
+Alle Tasks starten initial mit dem Zustand ready. Aus diesem Zustand heraus können die Tasks nur in den Zustand running wechseln (siehe \autoref{fig:zustandsautomat}), indem sie vom Scheduler ausgewählt und durch den Dispatcher eingewechselt werden.\\
+
+Aus dem Zustand running kann die Task in die Zustände blocking oder ready wechseln, je nach dem welcher Eriegnisse zur Laufzeit auftreten. Von blocking gibt es entweder die Möglichkeit in den Zustand ready oder direkt in den Zustand running zu wechseln.\\
+
+Hierbei handelt es sich jedoch nur um eine Empfehlung für die Zustandsänderung. Wie der Zustandsautomat tatsächlich aussieht hängt von der Implementierung der Funktion taskStateChanged(\verb|task_t|*) des Schedulers ab.
+
+\subsection{Round Robin Scheduler}
+\label{subsec:round-robin-scheduler}
+Der einzige standardmäßig implementierte Scheduler in Jefax - und damit auch der Defaultscheduler - ist ein prioritätengesteuerter Round Robin Scheduler.Dieser kann über die Funktion
+
+\begin{lstlisting}
+scheduler_t *getRRScheduler();
+\end{lstlisting}
+
+genutzt werden.\\
+
+Der Scheduler implementiert sämtliche Callbacks der \verb|scheduler_t| Struktur.
+Die \lstinline$init()$ Funktion sortiert die readyList nach Priorität der Tasks, damit Scheduler vernünftig mit der Liste arbeiten kann. Dabei steht die Task mit höchster Priorität (niedrigstem Wert) an letzter Stelle der Liste.\\
+
+Die Implementierung der Funktion \lstinline$void taskStateChanged(task_t*)$ prüft, ob die übergebene Task in den Zustand ready gewechselt hat, und wenn ja, ob die Task eine höhere Priorität als die momentan laufende Task besitzt. In diesem Fall wird die aktuell laufende Task ausgewechselt. Außerdem prüft die Funtkion, ob die runningTask selbst ihren Zustand weg von running geändert hat. Auch in diesem Fall wird die runningTask ausgewechselt.\\
+
+Die Funktion \lstinline$taskWokeUp(task_t*)$ funktioniert ähnlich. Auch hier wird geprüft, ob die aufgewachte Task eine höhere Priorität als die laufende Task hat. Ist dies der Fall wird ein Kontextwechsel erzwungen, jedoch nicht auf den Interrupt gewartet. Da diese Funktion im Interruptkontext abläuft, würde so ewig auf den Interrupt gewartet werden.\\
+
+Die wohl komplexeste Funktion des Schedulers ist \lstinline$getNextTask()$. Aufgrund ihrer Länge wird diese Funktion hier Teil für Teil besprochen. Die grobe Struktur sieht in Pseudocode so aus:
+
+\begin{lstlisting}
+static task_t* getNextTaskRR()
+{
+	readyUpBlockingTasks();
+	result = chooseFromReadyTasks();
+	addRunningTaskToList();
+	return result;
+}
+\end{lstlisting}
+
+Im ersten Schritt in Zeile 3, werden alle Tasks in der blockingList, deren Zustand nicht mehr blocking und damit ready ist (siehe \refnn{subsec:zustandsautomat}), in die readyList einsortiert. Dabei werden sie auch wieder entsprechend ihrer Priorität in die Liste eingefügt.\\
+
+Der nächste Schritt (Zeile 4), in dem die nächste Task aus der Ready List ausgewählt wird hat folgende Implementierung:
+
+\begin{lstlisting}[title=schedulerRR.c]
+//ready list is empty
+if(isEmpty(schedulerRR.readyList))
+{
+	if(NO_TASK_SCHEDULED() || RUNNING_TASK_IS_BLOCKING())
+		result = NULL;
+	else
+	{
+		getRunningTask()->state = RUNNING;
+		result = getRunningTask();
+	}
+}
+else
+{
+	//...
+}
+\end{lstlisting}
+
+Zuerst wird unterschieden, ob die readyList leer ist (Zeile 2). Ist dies der Fall, kann keine neue Task ausgewählt werden. Es kann lediglich die aktuelle Task weiterlaufen oder keine Task eingewechselt werden. Hierbei wird geprüft, ob überhaupt eine Task geschedult ist und ob die runningTask überhaupt weiterlaufen kann, also nicht den Zustand blocking hat (Zeile 4 bis 10). Kann die runningTask nicht weiterlaufen wird als Rückgabewert NULL festeglegt (Zeile 5), ansonsten die runningTask (Zeile 8).\\
+
+Ist die readyList nicht leer (else Teil in Zeile 12 bis 15), muss der Scheduler eine Task aus der Liste heraussuchen. Der Code dazu lautet:
+
+\begin{lstlisting}[title=schedulerRR.c]
+// get next task with highest priority
+result = getLast(schedulerRR.readyList);
+
+//next task would have lower prio, keep running task
+if(RUNNING_TASK_IS_RUNNING() && result->priority > getRunningTask()->priority)
+	result = getRunningTask();
+else
+{
+	popTaskBack(schedulerRR.readyList);
+	
+	if(RUNNING_TASK_IS_RUNNING())
+		getRunningTask()->state = READY;
+}
+\end{lstlisting}
+
+Zuerst holt sich der Scheduler die Task mit der höchsten Priorität aus der readyList ohne sie daraus zu entfernen (Zeile 2). Die Task mit der höchsten Priorität steht immer an der letzten Stelle der Liste.\\
+Als nächstes wird untersucht, ob die aktuell laufende Task noch lauffähig ist und falls ja, ob sie eine höhere Priorität besitzt als die Task aus der readyList (Zeile 4). Ist dies der Fall, wird die runningTask nicht ausgewechselt und die andere Task auch nicht aus der readyList entfernt. Der Rückgabewert der Funktion ist dann die runningTask (Zeile 5).\\
+Im anderen Fall wird die gewählt Task aus der readyList entfernt (Zeile 8) und falls die runningTask noch den Zustand running hat, der Zustand der runningTask auf ready geändert (Zeile 11 und 12).\\
+
+Im letzten Schritt der \lstinline$getNextTask()$ Funtkion des Round Robin Schedulers wird die runningTask entsprechend ihres Zustandes in die blocking- oder readyList eingeordnet.\\
+
+\textbf{Anmerkung:} Die hier benutzten Makros \lstinline$RUNNING_TASK_IS_...()$ berücksichtigen den Fall, dass runningTask \lstinline$NULL$ ist und geben in diesem Fall \lstinline$false$ zurück.
+
+\chapter{Timer}
+\label{chap:timer}
+Jefax verfügt über eine eigene Timer Komponente, mit der Funktionen in relativen Zeitabständen ausgelöst werden können. Ein Timer wird durch die Struktur \lstinline$timer_t$ dargestellt.
+
+\begin{lstlisting}[title=timer.h]
+typedef struct{
+	void (*callBack) (void*);
+	void *arg;
+	volatile unsigned int ms;
+} timer_t;
+\end{lstlisting}
+
+Ein Timer verfügt über eine Callback Funktion, die aufgerufen wird, sobald der Timer abgelaufen ist. Der Funktion kann auch ein Argument vom Typ \lstinline$void*$ übergeben werden. Die verbleibende Zeit (in Millisekunden) des Timers wird in der Variable ms gespeichert.\\
+
+Um einen eigenen Timer zu initialisieren, wird die Funktion
+
+\begin{lstlisting}[title=timer.h]
+int initTimer(timer_t *p_timer, int p_ms, void (*p_callBack) (void*), void * p_arg);
+\end{lstlisting}
+
+aufgerufen, wobei die Callbackfunktion, deren Argument und die Zeit, nach der der Timer zuschlagen soll, übergeben werden.\\
+Über den Aufruf
+
+\begin{lstlisting}[title=timer.h]
+int addTimer(timer_t p_timer);
+\end{lstlisting}
+
+kann ein Timer aktiviert werden. Nach dem Aufruf dieser Funktion schlägt der Timer frühstens nach der bei \lstinline$initTimer()$ angegebenen Zeit zu.\\
+Bei beiden Funktionen gilt ein Rückgabewert von 0 als Erfolg.\\
+Intern werden die Timer in einer Liste verwaltet und es wird ein Hardware Timer genutzt, um nach der entsprechenden Zeit zuzuschlagen. Dieser Hardware Timer wird auf den niedrigsten Wert aller Timer aus der Timerliste gesetzt, sodass das System tickless arbeitet. Dies geschieht immer dann, wenn eine Änderung in der Timerliste vorgenommen wird.\\
+Während der ISR des Timers wird zuerst der Kontext der unterbrochenen Task gespeichert. Daraufhin werden alle Timerwerte um den Wert des Hardwaretimers erniedrigt.\\
+Daraufhin werden alle Timer darauf überprüft, ob sie abgelaufen sind. Ist dies der Fall, wird der Timer aus der Liste entfernt und dessen Callback ausgeführt.\\
+
+\textbf{Anmerkung:} Damit laufen die Callback Funktionen im Interruptkontext, der Benutzer muss also auf Schlafen und ähnliches verzichten.
+
+\chapter{Dynamische Speicherverwaltung}
+\label{chap:dynamische-speicherverwaltung}
+Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden.
+
+\subsection{API}
+\label{subsec:mem-api}
+Um Speicher zu reservieren, wird die Funktion \lstinline$allocateMemory()$ verwendet. Als Argument bekommt diese die Größe des Speicherbereiches in Byte. Der Rückgabewert ist bei Erfolg ein Pointer auf den allokierten Speicherbereich. Bei einem Fehler bei der Speicheranforderung (kein Speicher mehr verfügbar) ist dieser 0.
+
+\begin{lstlisting}[title=memory.h]
+void *allocateMemory(uint8_t size);
+\end{lstlisting}
+
+Um den angeforderten Speicher wieder freizugeben, wird die Funktion \lstinline$freeMemory()$ benutzt, welche als Argument einen Pointer auf den freizugebenden  Speicherbereich bekommt. Nach dem Aufruf der Funktion sollte nich mehr über den Pointer auf den Speicherbereich zugegriffen werden.
+
+\begin{lstlisting}[title=memory.h]
+void freeMemory(void *mem);
+\end{lstlisting}
+
+Um Informationen zum aktuellen Speicherverbrauch abzufragen, kann die Funktion \lstinline$dumpMemory()$ verwendet werden. Diese liefert ein objekt der Struktur \lstinline$memoryInfo$ zurück.
+
+\begin{lstlisting}[title=memory.h]
+typedef struct
+{
+	char *heapStart;
+	char *nextFreeMemory;
+	int heapAllocated;
+	int freeListEntries;
+} memoryInfo;
+\end{lstlisting}
+
+Die Felder haben folgende Bedeutung:
+
+\begin{itemize}
+	\item heapStart: Start Adresse des Heaps (durch linker übergeben)
+	\item nextFreeMemory: Nächste freie Speicheradresse die vergeben werden kann (Ohne berücksichtigung der Free-List)
+	\item heapAllocated: Anzahl an Bytes die auf dem Heap allokiert wurden
+	\item freeListEntries: Anzahl an Einträgen in der Free-List
+\end{itemize}
+
+\subsection{Implementierung}
+\label{subsec:mem-impl}
+Die dynamische Speicherverwaltung ist lose an die avr-gcc malloc Implementierung gehalten. Es wurde darauf geachtet, möglichst wenig Overhead durch erforderliche Zusatzinformationen zu erzeugen.
+
+Bei einem Aufruf von \lstinline$allocateMemory()$ wird Speicher auf dem Heap reserviert. Der Heap beginnt nach der .bss section und wächst richtung Stack.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=300px]{images/malloc-std.png}
+	\caption{Sections}
+	\label{fig:sections}
+\end{figure}
+
+http://www.nongnu.org/avr-libc/user-manual/malloc.html
+
+
+Der Anfang des Heaps wird über das Linker Script an den Compiler/Linker übergeben. Die Start-Adresse kann über die Variable \lstinline$__heap_start$ abgefragt werden.
+
+\begin{lstlisting}[title=memory.c]
+// Defined from linker script
+extern char __heap_start;
+char *heapStart = &__heap_start;
+\end{lstlisting}
+
+Der allozierte Speicher wird durch die \lstinline$memoryArea$ Struktur verwaltet. 
+
+\begin{lstlisting}[title=memory.c]
+typedef struct memoryArea {
+    uint8_t size;
+    struct memoryArea *next;
+} memoryArea;
+\end{lstlisting}
+
+Vor jedem angeforderten Speicherbereich wird die Größe dieses Speicherbereichs (Variable size) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable next erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Restriktion stellt die size Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, ist der Overhead pro Speicherreservierung die Größe dieser Variable (1 Byte). \\
+
+Beim reservieren von Speicher wird zunächst der verfügbare Speicher sowie auf Stack-Kollision geprüft. Kann Speicher reserviert werden, wird die Adresse des nächsten verfügbaren Speichers auf ein Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der next Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
+
+\begin{lstlisting}[title=memory.c]
+newMemoryArea = (memoryArea *) nextFreeMemory;
+newMemoryArea->size = size;
+
+nextFreeMemory += size + sizeof(uint8_t);
+
+// ...
+
+return &(newMemoryArea->next);
+\end{lstlisting}
+
+Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht aus einer verketteten Liste von \lstinline$memoryArea$ Elementen. Bei der Speicheranforderungen wird zuerst die Free-List betrachtet. Wird ein passender Eintrag in der Free-List gefunden, wird dieser aus der Free-List entfernt und dem Benutzer zurück geliefert. Wird kein passender Eintrag gefunden, wird überprüft, ob durch ein größeres Element in der Free-List die Speicheranforderung erfüllt werden kann. Ist dies nicht der Fall, wird neuer Speicher aus dem Heap zurück geliefert.
+
+Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann.
+
+Da Heap und Stack aufeinander zu wachsen, besteht hier die Gefahr einer Kollision. Um dies zu vermeiden, wird bei Speicheranforderungen auf eine Kollision überprüft. Der Heap kann nicht weiter als bis zu einem festgelegten Abstand zum Stack wachsen. Dieser Abstand bestimmt die Variable \lstinline$margin$. Ist diese Grenze erreicht, kann \lstinline$allocateMemory()$ keinen Speicher mehr allozieren und liefert 0 zurück. Obwohl es keinen freien Speicher mehr auf dem Heap gibt, kann die Anwendung weiterhin mit dem Stack (der noch margin Bytes frei hat) arbeiten und stürzt nicht ab.
+
+Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu schützen, werden beim allozieren und freigeben Interrupts gesperrt.
+
+\chapter{Die Shell}
+\label{chap:die-shell}
+Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Das Senden und Empfangen erfolgt Interrupt-gesteuert. Die Shell läuft als eigener Task und wird wie alle Tasks geschedult. Nachrichten werden über ein Message-System gesendet und Empfangen. Um zu verhindern, dass Messages verloren gehen oder Buffer überlaufen, wird die dynamische Speicherverwaltung zum verwalten der Messages und Queues verwendet. \\
+
+Zum Verwalten der USART Nachrichten werden verschiedene Buffer verwendet, welche in der Dateien \lstinline$usart_message.h$ und \lstinline$usart_queue.h$ deklariert sind.
+
+\subsection{Message Queues}
+\label{subsec:shell-queue}
+Zum Empfangen und Senden werden Message Queues (verkettete Listen) vom Typ \lstinline$messageQueue$ verwendet.
+
+\begin{lstlisting}
+struct messageQueue
+{
+	message *tail;
+	message *head;
+	int size;
+};
+\end{lstlisting}
+
+Zum Erzeugen und Zerstören von message queues werden die Funktionen
+
+\begin{lstlisting}
+messageQueue *getMessageQueue();
+void destroyMessageQueue(messageQueue *queue);
+\end{lstlisting}
+
+verwendet. Diese verwenden intern zum reservieren/freigeben des Speichers der queue die  \lstinline$allocateMemory()$ und \lstinline$freeMemory()$ Funktionen. Beim freigeben des Speichers der queue wird auch der Speicher aller Elemente in der Queue freigegeben. Zum Hinzufügen und Auslesen von Messages aus einer queue werden die Funktionen
+
+\begin{lstlisting}
+void enqueue(messageQueue *queue, message *msg);
+message *dequeue(messageQueue *queue);
+\end{lstlisting}
+
+benutzt. Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message queue verwaltet wird und keine Kopie dieser message gemacht wird. Es wird kein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message benötigt.
+
+\subsection{Messages}
+\label{subsec:shell-messages}
+Um Daten zu senden und zu empfangen werden Messages verwendet.
+
+\begin{lstlisting}
+struct message
+{
+	char *data;
+	int size;
+
+	int stackIndex;
+	MSG_TYPE type;
+
+	message *next;
+};
+\end{lstlisting}
+
+Die Variable type bestimmt dabei, ob die Art des Messages.
+\begin{itemize}
+	\item TX\_MSG: Messages um über USART zu senden.
+	\item RX\_MSG: Messages um über USART zu empfangen.
+\end{itemize}
+
+Die Variable stackIndex wird verwendet, um eine Message als Stack benutzen zu können. je nach MSG\_TYPE können Byte-weise Daten gepusht oder gepopt werden. Dies erlaubt ein komfortables senden und empfangen bei der USART Kommunikation, da über USART immer nur 1 Byte gesendet/empfangen werden kann. Beispielsweise kann in jedem USART data-receive interrupt jeweils ein Byte auf die aktuelle Message gepusht werden. Es entfällt das manuelle Berechnen des nächsten freien Bytes in der Message.
+
+Um Daten zu Senden, können je nach bedarf verschiedene Funktionen benutzt werden.
+
+\begin{lstlisting}
+message *getMessage(int dataSize, MSG_TYPE type);
+void destroyMessage(message *msg);
+\end{lstlisting}
+
+Wie bei Message Queues gibt es jeweils eine Funktion zum erzeugen und zerstören von Messages. Es wird ebenfalls die dynamische Speicherverwaltung verwendet. \lstinline$getMessage()$ bekommt als Parameter die Größe der Message in Bytes, sowie den Message Typ, welcher den Stack-zugriff vorgibt.
+
+\begin{lstlisting}
+int setMessageData(message *msg, char *data, int size);
+\end{lstlisting}
+
+Zum setzen des Inhalts der Message wird \lstinline$setMessageData()$ verwendet. Die übergebenen Daten werden dabei in den message buffer kopiert.
+
+Um die Daten einer message auszulesen werden die folgenden Funktionen verwendet:
+
+\begin{lstlisting}
+char getMessageDataCopy(message *msg, char **data, int *size);
+char *getMessageData(message *msg);
+\end{lstlisting}
+
+\lstinline$getMessageDataCopy()$ liefert eine Kopie der Daten zurück (char **data). Das bedeutet, diese Daten müssen nach Benutzung mit \lstinline$freeMemory()$  freigegeben werden. \lstinline$getMessageData$ liefert einen Pointer auf die Daten der Message zurück. Dieser Speicher darf nicht mit \lstinline$freeMemory()$  freigegeben werden. Auch muss beim Zugriff auf diese Adresse sichergestellt sein, dass die dazugehörige Message noch nicht gelöscht wurde.
+
+wird eine Kopie einer Message inklusive Daten benötigt kann folgende Funktion verwendet werden:
+
+\begin{lstlisting}
+message *copyMessage(message *msg);
+\end{lstlisting}
+
+Vorgang zum Erzeugen von Messages:
+
+\begin{lstlisting}
+char character = '\n';
+message *msg;
+
+msg = getMessage(1, TX_MSG);
+if (msg == 0)
+	error();
+	
+setMessageData(msg, &character, 1);
+
+// Use message
+
+destroyMessage(msg);
+\end{lstlisting}
+
+\subsection{USART Kommunikation}
+\label{subsec:shell-communication}
+Die Datei \lstinline$usart.h$ bietet Funktionen zum initialisieren der USART-Schnittstelle sowie zum Senden und Empfangen von Messages.
+
+Um direkt messages zu empfangen/senden werden folgende Funktionen verwendet:
+
+\begin{lstlisting}
+void sendMessageUsart(message *msg);
+message *receiveMessageUsart();
+\end{lstlisting}
+
+Jede Empfangene Message besteht aus einem Null-terminierten String. Nach einem Aufruf von \lstinline$sendMessageUsart()$ wird die Message vom usart system verwaltet. Der Benutzer sollte nicht mehr auf die Message zugreifen. Für die verwaltung (Speicher freigeben) der zurückgelieferten Message von \lstinline$receiveMessageUsart()$ ist der Benutzer zuständig.
+
+Zusätzlich können zum Senden von Strings komfortablere Funktionen verwendet werden.
+
+\begin{lstlisting}
+void print(char *string);
+void printChar(char character);
+\end{lstlisting}
+
+\lstinline$print$ erwartet als Paramter einen Null-terminierten String, welcher in den internen Buffer kopiert wird.
+
+\subsection{USART Kommunikation Implementierung}
+\label{subsec:shell-communication-impl}
+Die USART Kommunikation erfolgt interruptgesteuert. Folgender Frame Format wird verwendet:
+
+Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART Geräte können über die folgenden Defines eingestellt werden:
+
+\begin{lstlisting}
+#define USART USARTC0
+#define USART_PORT PORTC
+#define BAUDRATE 115200
+\end{lstlisting}
+
+Zum senden und emfangen werden Low-Level Interrupts verwendet. Wurde ein Byte empfangen, wird der USARTC0\_RXC\_vect Interrupt getriggert. Können Daten in den usart hardware buffer kopiert werden, wird der USARTC0\_DRE\_vect Interupt getriggert (data register empty). Empfangene und zu sendene Messsages werden in Message queues gespeichert. Da das Message System mit dynamischer Speicherverwaltung arbeitet, können keine Messages verloren gehen.
+
+\begin{lstlisting}
+static messageQueue *rxQueue;
+static messageQueue *txQueue;
+\end{lstlisting}
+
+Der Zugriff auf die Message queues wird durch interrupt sperren gesichert, da von Tasks sowie von Interrupts auf diese zugegriffen wird.
+
+Empfangen von Messages: \\
+Es werden so lange bytes empfangen und in die Variable current rcv msg gepusht, bis ein new line erkannt wurde oder eine bestimmte MAX\_MSG\_länge erreicht wurde. Erst dann wird eine message in die receive queue hinzugefügt und es wird eine neuie currentrcvMessage erzeugt. Die mesasge emofangs routine prüft zusätzlich auf verschiedene escape charactere wie DEL, CR, ESC, usw,. Um zu vergindern dass der command prompt gelöscht werden kann wird bei DEL die cursor position abgefragt.
+
+TODO: StripMsg
+
+Senden von Messages: \\
+Senden erfolgt analog zum empfangen. Die variable currentSendMsg enthält die gerade zu senden message. Im DRE Interruopt wird immer 1 Byte von dieser message gepopt. Wurde diese vollständig gesdendet kann der speicher der message freiegeben werden und es kann die nächste msg aus der send queue gesendet werden.
+
+Beide USART Interruopts arbeiten auf dem System stack.
+
+\subsection{Shell Task}
+\label{subsec:shell-task}
+Die Shell Tasks wird wie alle anderen tasks geschedult und verarbeitet und inmterpretiert die empfangenen messages.
+
+Die Funjktion wairForMessgae wird verwendet um aktiv auf eine message zu warten:
+
+\begin{lstlisting}
+static message *waitForMessage()
+{
+    message *msg;
+
+    while (1) {
+        msg = receiveMessageUsart();
+        if (msg != 0)
+            break;
+    }
+
+    return msg;
+}
+\end{lstlisting}
+
+Wurde eine msg empfangen wird parseMessage aufgerufen, welche die mesasgae interpriertiert. Folgende befehle sind verfügbar:
+
+\begin{itemize}
+	\item ledOn Schaltet die led1 an
+	\item ledOff Schaltet die led1 aus
+	\item memDump Gibt Informationen der dynamischen Speicherverwaltung aus
+\end{itemize}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=300px]{images/shell.png}
+	\caption{jefax shell}
+	\label{fig:shell}
+\end{figure}
+
+\chapter{Fazit}
+\label{chap:fazit}
+
+\begin{thebibliography}{999}
+	
+\end{thebibliography}
+
+\cleardoublepage
+\addcontentsline{toc}{chapter}{\listfigurename}
+\listoffigures
+
+\end{document}
