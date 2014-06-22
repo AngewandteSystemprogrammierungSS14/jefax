@@ -13,9 +13,8 @@
 #include <limits.h>
 #include <avr/interrupt.h>
 
-#define DEF_TIMER_COUNT 20
+#define DEF_TIMER_COUNT 10
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
-#define PRESCALE_VALUE 256
 
 static volatile timer_t timers[DEF_TIMER_COUNT];
 static volatile int timerCount;
@@ -29,7 +28,7 @@ int initTimerSystem()
 	// Set 16 bit timer
 	TCD0.CTRLA = TC_CLKSEL_OFF_gc; // timer off
 	TCD0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
-	TCD0.PER = MS_TO_TIMER(100, PRESCALE_VALUE);
+	TCD0.PER = MS_TO_TIMER(100, TIMER_PRESCALER);
 	TCD0.CNT = 0x00;
 	TCD0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 	
@@ -77,7 +76,7 @@ static void updatePeriod()
 	}
 	
 	TCD0.CNT = 0;
-	TCD0.PER = MS_TO_TIMER(nextMS, PRESCALE_VALUE);
+	TCD0.PER = MS_TO_TIMER(nextMS, TIMER_PRESCALER);
 }
 
 ISR(TCD0_OVF_vect,ISR_NAKED)
@@ -96,7 +95,7 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 
 static void decreaseTimers(const int p_ms)
 {
-	unsigned int ms = TIMER_TO_MS(TCD0.PER, PRESCALE_VALUE);
+	unsigned int ms = TIMER_TO_MS(TCD0.PER, TIMER_PRESCALER);
 	unsigned int toDec;
 	int i;
 	for(i = 0; i < timerCount; ++i)

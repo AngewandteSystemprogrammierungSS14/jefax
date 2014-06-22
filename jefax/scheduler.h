@@ -10,10 +10,9 @@
 #include "tasklist.h"
 #include "stddef.h"
 
-#define NO_TASK_SCHEDULED() (getRunningTask() == NULL)
-#define RUNNING_TASK_IS_RUNNING() (getRunningTask() != NULL && getRunningTask()->state == RUNNING)
-#define RUNNING_TASK_IS_READY() (getRunningTask() != NULL && getRunningTask()->state == READY)
-#define RUNNING_TASK_IS_BLOCKING() (getRunningTask() != NULL && getRunningTask()->state == BLOCKING)
+#define TASK_IS_RUNNING(task) (task->state == RUNNING)
+#define TASK_IS_READY(task) (task->state == READY)
+#define TASK_IS_BLOCKING(task) (task->state == BLOCKING)
 
 /* Function "taskWokeUp" always runs in interrupt context (Timer interrupt). */
 typedef struct  
@@ -32,13 +31,13 @@ task_t* schedule();
 void yield();
 void sleep(const int p_ms);
 void setTaskState(task_t *p_task, taskState_t p_state);
-taskState_t getTaskState(const task_t *p_task);
 
 void forceContextSwitch();
 
 void setScheduler(scheduler_t *p_scheduler);
 
 task_t *getRunningTask();
+int hasRunningTask();
 
 
 

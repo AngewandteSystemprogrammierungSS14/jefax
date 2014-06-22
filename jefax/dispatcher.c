@@ -8,7 +8,6 @@
 #include <avr/interrupt.h>
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
-#define PRESCALER_VALUE 256
 
 /* The global, extern defined task list with all tasks to dispatch. */
 extern task_t TASKS[];
@@ -78,7 +77,7 @@ static void initTimer()
 	// Set 16 bit timer
 	TCC0.CTRLA = TIMER_PRESCALER; // 256 prescaler -> 3900 / sec -> 65536 max.
 	TCC0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
-	TCC0.PER = MS_TO_TIMER(100, PRESCALER_VALUE);
+	TCC0.PER = 40;//MS_TO_TIMER(100, TIMER_PRESCALER);
 	TCC0.CNT = 0x00;
 	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 }
@@ -86,7 +85,7 @@ static void initTimer()
 void setInterruptTime(unsigned int p_msec)
 {
 	uint8_t irEnabled = enterAtomicBlock();
-	TCC0.PER = MS_TO_TIMER(p_msec, PRESCALER_VALUE); // Top-Value (period)
+	TCC0.PER = MS_TO_TIMER(p_msec, TIMER_PRESCALER); // Top-Value (period)
 	exitAtomicBlock(irEnabled);
 }
 

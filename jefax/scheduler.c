@@ -56,7 +56,7 @@ static int initTaskLists()
 	if(taskCount <= 0)
 		return -1;
 	
-	runningTask = NULL;
+	runningTask = &idleTask;
 	
 	int i;
 	for(i = 0; i < taskCount; ++i)
@@ -70,14 +70,11 @@ static int initTaskLists()
 
 task_t* schedule()
 {
-	task_t *result;
 	runningTask = scheduler->getNextTask();
 	if(runningTask == NULL)
-		result = &idleTask;
-	else
-		result = runningTask;
-	result->state = RUNNING;
-	return result;
+		runningTask = &idleTask;
+	runningTask->state = RUNNING;
+	return runningTask;
 }
 
 void yield()
@@ -97,6 +94,7 @@ void sleep(const int p_ms)
 	exitAtomicBlock(irEnabled);
 }
 
+/* runs in interrupt context */
 static void sleepTimerCallback(void *arg)
 {
 	task_t *task = (task_t*) arg;
@@ -116,29 +114,18 @@ void setTaskState(task_t *p_task, taskState_t p_state)
 
 void forceContextSwitch()
 {
+	// save interrupt enable state
 	uint8_t state = SREG & 0x80;
 	// create interrupt
 	sei();
-	
 	FORCE_INTERRUPT(TCC0);
 	
 	// wait to be exchanged
-	while(getTaskState(runningTask) != RUNNING)
+	while(!TASK_IS_RUNNING(runningTask))
 	{ }
 	
 	if(!state)
 		cli();
-}
-
-taskState_t getTaskState(const task_t *p_task)
-{
-	taskState_t result;
-	uint8_t irEnabled = enterAtomicBlock();
-	
-	result = p_task->state;
-		
-	exitAtomicBlock(irEnabled);
-	return result;
 }
 
 void setScheduler(scheduler_t *p_scheduler)
@@ -152,6 +139,11 @@ void setScheduler(scheduler_t *p_scheduler)
 task_t *getRunningTask()
 {
 	return runningTask;
+}
+
+int hasRunningTask()
+{
+	return runningTask != &idleTask;
 }
 
 static int idleTaskFunction()
