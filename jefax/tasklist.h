@@ -1,15 +1,11 @@
-/*
- * tasklist.h
- *
- * Created: 17.05.2014 10:37:36
- *  Author: Fabian
- */ 
+/* The tasklist provides several functions to manage task_t structs in a list.
+ * This is used by the scheduler and locking mechanisms. */
 
 #pragma once
 
 #include "task.h"
 
-#define DEF_TASK_LIST_SIZE 20
+#define DEF_TASK_LIST_SIZE 10
 
 typedef struct
 {

@@ -1,19 +1,10 @@
-/*
- * scheduler.c
- *
- * Created: 05.05.2014 09:45:40
- *  Author: Fabian
- */ 
-
+#include <avr/interrupt.h>
 #include "scheduler.h"
 #include "atomic.h"
 #include "timer.h"
 #include "utils.h"
 #include "jefax_xmega128.h"
-#include <avr/interrupt.h>
 
-
-/* prototypes */
 static int initTaskLists();
 static void sleepTimerCallback(void *arg);
 static int idleTaskFunction();
@@ -25,6 +16,7 @@ static taskList_t readyList;
 static taskList_t blockingList;
 static scheduler_t *scheduler;
 
+/* idleTask runs if no other task can be found to be scheduled. */
 static task_t idleTask = { idleTaskFunction, 255, READY, 0, {0} };
 
 int initScheduler(scheduler_t *p_defaultScheduler)
@@ -56,11 +48,12 @@ static int initTaskLists()
 	if(taskCount <= 0)
 		return -1;
 	
+	// first task running is the idleTask, but exchanged right after initialization
 	runningTask = &idleTask;
 	
+	// insert all tasks in ready list, so they are registered for scheduling
 	int i;
-	for(i = 0; i < taskCount; ++i)
-	{
+	for(i = 0; i < taskCount; ++i) {
 		TASKS[i].state = READY;
 		pushTaskBack(&readyList, &TASKS[i]);
 	}
@@ -71,6 +64,7 @@ static int initTaskLists()
 task_t* schedule()
 {
 	runningTask = scheduler->getNextTask();
+	// no task was found, so schedule idleTask
 	if(runningTask == NULL)
 		runningTask = &idleTask;
 	runningTask->state = RUNNING;

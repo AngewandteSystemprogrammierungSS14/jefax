@@ -1,9 +1,5 @@
-/*
- * schedulerRR.h
- *
- * Created: 17.05.2014 11:13:39
- *  Author: Fabian
- */ 
+/* This component implements a priority based round robin
+ * scheduler. This is the default scheduler of jefax. */
 
 #pragma once
 

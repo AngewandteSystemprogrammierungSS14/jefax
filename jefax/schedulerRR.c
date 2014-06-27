@@ -1,14 +1,7 @@
-/*
- * schedulerRR.c
- *
- * Created: 17.05.2014 11:13:59
- *  Author: Fabian
- */ 
-
-#include "schedulerRR.h"
-#include "stddef.h"
-#include "utils.h"
 #include <avr/interrupt.h>
+#include <stddef.h>
+#include "schedulerRR.h"
+#include "utils.h"
 
 static void initSchedulerRR();
 static task_t* getNextTaskRR();
@@ -27,6 +20,7 @@ scheduler_t *getRRScheduler()
 
 static void initSchedulerRR()
 {
+	// sorts tasks depending on their priority (ascending)
 	sortPriority(schedulerRR.readyList);
 }
 
@@ -37,16 +31,15 @@ static task_t* getNextTaskRR()
 	readyUpBlockingTasksRR();
 	
 	//ready list is empty
-	if(isEmpty(schedulerRR.readyList))
-	{
+	if(isEmpty(schedulerRR.readyList)) {
+		// runningTask cannot keep running return NULL
 		if(!hasRunningTask() || TASK_IS_BLOCKING(getRunningTask()))
 			result = NULL;
 		else {
 			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
 		}
-	}
-	else {
+	} else {
 		// get next task with highest priority
 		result = getLast(schedulerRR.readyList);
 		
@@ -97,6 +90,7 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 		return 0;
 			
 	result = 0;
+	// find correct index for corresponding priority
 	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
 		++result;
 	
@@ -105,7 +99,7 @@ static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
 
 static void taskStateChangedRR(task_t* p_task)
 {
-	//check if there is any running task, if true check if high prior task got ready
+	//check if there is any running task, check if high prior task got ready
 	if(hasRunningTask() && TASK_IS_READY(p_task) && p_task->priority < getRunningTask()->priority)
 		getRunningTask()->state = READY;
 	// if running task is not in running state anymore switch task

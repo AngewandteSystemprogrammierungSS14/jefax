@@ -1,3 +1,4 @@
+#include <avr/interrupt.h>
 #include "dispatcher.h"
 #include "scheduler.h"
 #include "schedulerRR.h"
@@ -5,14 +6,13 @@
 #include "utils.h"
 #include "jefax_xmega128.h"
 #include "usart.h"
-#include <avr/interrupt.h>
+
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 
 /* The global, extern defined task list with all tasks to dispatch. */
 extern task_t TASKS[];
 
-// Prototypes
 static void initTimer();
 static void init32MHzClock();
 static int runDispatcher();
@@ -92,6 +92,7 @@ void setInterruptTime(unsigned int p_msec)
 /* Function for dispatcher task. */
 static int runDispatcher()
 {
+	// get next task from scheduler
 	task_t* toDispatch = schedule();
 	dispatch(toDispatch);
 	return 0;
@@ -112,7 +113,6 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
-	// set stackpointer to default task
 	ENTER_SYSTEM_STACK();
 	initTask(&dispatcherTask);
 	SP = (uint16_t) (dispatcherTask.stackpointer);

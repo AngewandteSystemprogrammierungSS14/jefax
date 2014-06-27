@@ -1,12 +1,5 @@
-/*
- * tasklist.c
- *
- * Created: 17.05.2014 10:37:50
- *  Author: Fabian
- */ 
-
+#include <stddef.h>
 #include "tasklist.h"
-#include "stddef.h"
 
 int initTaskList(taskList_t *p_list)
 {

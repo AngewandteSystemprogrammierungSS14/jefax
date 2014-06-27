@@ -1,20 +1,25 @@
-/*
- * scheduler.h
- *
- * Created: 05.05.2014 09:41:31
- *  Author: Fabian
- */ 
+/* The scheduler decides which task is next to get the CPU. Scheduling
+ * is invoked by the dispatcher.
+ * The struct scheduler_t provides an interface to create custom schedulers,
+ * which can be set using setScheduler().
+ * All callback functions have to be implemented.
+ * All functions (return type int) return 0 on success. */
 
 #pragma once
 
+#include <stddef.h>
 #include "tasklist.h"
-#include "stddef.h"
 
 #define TASK_IS_RUNNING(task) (task->state == RUNNING)
 #define TASK_IS_READY(task) (task->state == READY)
 #define TASK_IS_BLOCKING(task) (task->state == BLOCKING)
 
-/* Function "taskWokeUp" always runs in interrupt context (Timer interrupt). */
+/* The init() callback is called during setScheduler(). Ready- and blockinglist should
+ * be prepared, so the scheduler can work in a correct way.
+ * getNextTask() is invoked to get the next task that will be running. If not task
+ * can be found NULL should be returned.
+ * taskStateChanged() is invoked if any task changes its state (running, blocking, ready).
+ * The callback taskWokeUp() always runs in interrupt context (Timer interrupt). */
 typedef struct  
 {
 	void (*init)();

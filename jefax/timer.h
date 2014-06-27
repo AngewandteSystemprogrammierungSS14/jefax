@@ -1,9 +1,8 @@
-/*
- * timer.h
- *
- * Created: 19.05.2014 15:34:07
- *  Author: Fabian
- */ 
+/* The timer components allows actions to be called at some point in the future.
+ * initTimer() takes a relative time value, a callback and alternatively an
+ * argument for the callback.
+ * int initTimerSystem() has to be called before any timer can be used
+ * correctly. */
 
 #pragma once
 

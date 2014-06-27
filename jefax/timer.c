@@ -1,17 +1,10 @@
-/*
- * timer.c
- *
- * Created: 19.05.2014 15:48:31
- *  Author: Fabian
- */ 
-
+#include <limits.h>
+#include <avr/interrupt.h>
 #include "timer.h"
 #include "task.h"
 #include "atomic.h"
 #include "utils.h"
 #include "scheduler.h"
-#include <limits.h>
-#include <avr/interrupt.h>
 
 #define DEF_TIMER_COUNT 10
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
@@ -55,6 +48,7 @@ int addTimer(timer_t p_timer)
 	++timerCount;
 	updatePeriod();
 	
+	// enable hardware timer if there are timers in the list
 	if(timerCount >= 1)
 		ENABLE_TIMER(TCD0, TIMER_PRESCALER);
 	
@@ -69,12 +63,13 @@ static void updatePeriod()
 {
 	unsigned int nextMS = UINT_MAX;
 	int i;
-	for(i = 0; i < timerCount; ++i)
-	{
+	// find shortest relative value
+	for(i = 0; i < timerCount; ++i) {
 		if(timers[i].ms < nextMS)
 			nextMS = timers[i].ms;
 	}
 	
+	// reset hardware timer
 	TCD0.CNT = 0;
 	TCD0.PER = MS_TO_TIMER(nextMS, TIMER_PRESCALER);
 }
@@ -95,17 +90,20 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 
 static void decreaseTimers(const int p_ms)
 {
+	// get elapsed time
 	unsigned int ms = TIMER_TO_MS(TCD0.PER, TIMER_PRESCALER);
 	unsigned int toDec;
 	int i;
-	for(i = 0; i < timerCount; ++i)
-	{
-		toDec = timers[i].ms >= ms ? ms : timers[i].ms;
+	
+	// decrease timer values
+	for(i = 0; i < timerCount; ++i) {
+		// prevent timer[i].ms from getting lower than 0
+		toDec = (timers[i].ms >= ms ? ms : timers[i].ms);
 		timers[i].ms -= toDec;
 	}
 	
-	for(i = 0; i < timerCount; ++i)
-	{
+	// check for all timers if they elapsed
+	for(i = 0; i < timerCount; ++i) {
 		while(i < timerCount && timers[i].ms <= 0)
 			timerElapsed(i);
 	}
