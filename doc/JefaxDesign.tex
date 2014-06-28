@@ -447,7 +447,7 @@ typedef struct memoryArea {
 
 Vor jedem angeforderten Speicherbereich wird die Größe dieses Speicherbereichs (Variable size) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable next erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Restriktion stellt die size Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, ist der Overhead pro Speicherreservierung die Größe dieser Variable (1 Byte). \\
 
-Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ memoryArea) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speichblöcke wurde wieder freigegen und befinden sich in der Free List. In jedem Speicherbereich sind die Variablen \lstinline{size} und \lstinline{next} abgebildet (benötigt für die Kontrollinformationen). Beim reservieren des Speicherblocks blau wurde die Adresse der Variable next an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline{size} (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline{next} zeigt jeweils auf den nächsten Eintrag der Free List.
+Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ memoryArea) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speichblöcke wurde wieder freigegen und befinden sich in der Free List. In jedem Speicherbereich sind die Variablen \lstinline$size$ und \lstinline$next$ abgebildet (benötigt für die Kontrollinformationen). Beim reservieren des Speicherblocks blau wurde die Adresse der Variable next an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline$size$ (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline$next$ zeigt jeweils auf den nächsten Eintrag der Free List.
 
 \begin{figure}[H]
 	\centering
@@ -605,7 +605,7 @@ void printChar(char character);
 \label{subsec:shell-communication-impl}
 Die USART Kommunikation erfolgt Interrupt-gesteuert. Folgender Frame Format wird verwendet:\\
 
-\lstinline{Asynchronous Communicatin Mode, no parity, 1 Stop Bit, 8 Bit data}\\
+\lstinline$Asynchronous Communicatin Mode, no parity, 1 Stop Bit, 8 Bit data$\\
 
 Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART Geräte können über die folgenden Defines eingestellt werden:\\
 
@@ -625,7 +625,7 @@ static messageQueue *txQueue;
 Der Zugriff auf die Message Queues wird durch Interrupt-sperren gesichert, da von Tasks sowie von Interrupts auf diese zugegriffen wird. Beide USART Interrupts arbeiten auf dem System Stack.
 
 \subsection{Empfangen von Messages}
-Es werden so lange Bytes empfangen und in die Message \lstinline{currentReceiveMessage} gepusht, bis eine neue Zeile erkannt wurde oder eine bestimmte maximale Länge der Message (\lstinline{MAX_RECEIVE_MSG_SIZE}) erreicht wurde. Erst dann wird eine Message in die receive queue hinzugefügt und es wird eine neue \lstinline{currentReceiveMessage} erzeugt. Die Empfangsroutine prüft zusätzlich auf verschiedene escape Sequenzen wie DEL, CR, ESC, usw,. Um zu verhindern dass der command prompt gelöscht werden kann wird bei DEL die cursor position abgefragt. Verschiedene Funktionen garantieren, dass die empfangene Message immer nur die minimale Größe besitzt. Bild \ref{fig:usart_receive} zeigt den groben Ablauf beim Empfangen von Nachrichten.
+Es werden so lange Bytes empfangen und in die Message \lstinline$currentReceiveMessage$ gepusht, bis eine neue Zeile erkannt wurde oder eine bestimmte maximale Länge der Message (\lstinline$MAX_RECEIVE_MSG_SIZE$) erreicht wurde. Erst dann wird eine Message in die receive queue hinzugefügt und es wird eine neue \lstinline$currentReceiveMessage$ erzeugt. Die Empfangsroutine prüft zusätzlich auf verschiedene escape Sequenzen wie DEL, CR, ESC, usw,. Um zu verhindern dass der command prompt gelöscht werden kann wird bei DEL die cursor position abgefragt. Verschiedene Funktionen garantieren, dass die empfangene Message immer nur die minimale Größe besitzt. Bild \ref{fig:usart_receive} zeigt den groben Ablauf beim Empfangen von Nachrichten.
 
 \begin{figure}[H]
 	\centering
@@ -635,7 +635,7 @@ Es werden so lange Bytes empfangen und in die Message \lstinline{currentReceiveM
 \end{figure}
 
 \subsection{Senden von Messages}
-Senden erfolgt analog zum Empfangen. Die variable \lstinline{currentSendMsg} enthält die gerade zu sendende Message. Im DRE Interrupt wird immer 1 Byte von dieser Message gepopt. Wurde diese vollständig gesendet kann der Speicher der Message freigegeben werden und es kann die nächste Message aus der send queue gesendet werden. Der DRE Interrupt wird aktiviert, sobald eine Nachricht gesendet werden soll. Wurden alle Nachrichten aus der Queue gesendet, wird dieser deaktiviert. Bild \ref{fig:usart_send} zeigt das Versenden von Nachrichten.
+Senden erfolgt analog zum Empfangen. Die variable \lstinline$currentSendMsg$ enthält die gerade zu sendende Message. Im DRE Interrupt wird immer 1 Byte von dieser Message gepopt. Wurde diese vollständig gesendet kann der Speicher der Message freigegeben werden und es kann die nächste Message aus der send queue gesendet werden. Der DRE Interrupt wird aktiviert, sobald eine Nachricht gesendet werden soll. Wurden alle Nachrichten aus der Queue gesendet, wird dieser deaktiviert. Bild \ref{fig:usart_send} zeigt das Versenden von Nachrichten.
 
 \begin{figure}[H]
 	\centering
@@ -646,7 +646,7 @@ Senden erfolgt analog zum Empfangen. Die variable \lstinline{currentSendMsg} ent
 
 \section{Shell Task}
 \label{subsec:shell-task}
-Die Shell Tasks wird wie alle anderen Tasks geschedult und verarbeitet und interpretiert die empfangenen Messages. In der Headerdatei \lstinline{shell.c} kann der command prompt der Shell konfiguriert werden. Die Funktion\\
+Die Shell Tasks wird wie alle anderen Tasks geschedult und verarbeitet und interpretiert die empfangenen Messages. In der Headerdatei \lstinline$shell.c$ kann der command prompt der Shell konfiguriert werden. Die Funktion\\
 
 \begin{lstlisting}
 void setMessageCallback(void (*processMessageCB)(char *msg));
@@ -655,7 +655,7 @@ void setMessageCallback(void (*processMessageCB)(char *msg));
 erlaubt das Setzen einer Callback-Funktion. Die Shell-Task verarbeitet die Empfangenen Daten und verarbeitet ggf. die Befehle. Alle nicht verarbeiteten Daten werden an die Callback-Funktion übergeben.
 
 \subsection{Implementierung}
-Die Funktion \lstinline{waitForMessage} wird verwendet um aktiv auf eine Message zu warten:
+Die Funktion \lstinline$waitForMessage$ wird verwendet um aktiv auf eine Message zu warten:
 
 \begin{lstlisting}
 static message *waitForMessage()
@@ -672,7 +672,7 @@ static message *waitForMessage()
 }
 \end{lstlisting}
 
-Wurde eine Message empfangen wird \lstinline{parseMessage} aufgerufen, welche die Message verarbeitet. Folgende befehle sind verfügbar:
+Wurde eine Message empfangen wird \lstinline$parseMessage$ aufgerufen, welche die Message verarbeitet. Folgende befehle sind verfügbar:
 
 \begin{itemize}
 	\item ledOn Schaltet die led1 an
@@ -680,19 +680,22 @@ Wurde eine Message empfangen wird \lstinline{parseMessage} aufgerufen, welche di
 	\item memDump Gibt Informationen der dynamischen Speicherverwaltung aus
 \end{itemize}
 
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=450px]{images/shell.png}
-	\caption{jefax shell}
-	\label{fig:shell}
-\end{figure}
+%\begin{figure}[H]
+%	\centering
+%	\includegraphics[width=450px]{images/shell.png}
+%	\caption{jefax shell}
+%	\label{fig:shell}
+%\end{figure}
 
 \chapter{Fazit}
 \label{chap:fazit}
 
+Jefax bietet eine gute Möglichkeit Tasks quasi-parallel auf einem XMega ablaufen zu lassen. Jedoch werden atomare Zugriffe und der gegenseitige Ausschluss durch viele Interruptsperren realisiert. Dadurch hat das System eine hohe Interruptlatenzzeit, was vor allem in Realzeitsystemen beachtet werden muss.
+Das Timer Framework von Jefax wird durch einen Hardware Interrupt realisiert. Somit laufen alle Timer Callbacks im Interruptkontext. Dies verlangt einen gewissen Grad an Erfahrung und Aufmerksamkeit des Nutzers. Intuitiver und weniger fehleranfällig wäre eine Realisierung als Softinterrupt.
+Die Realisierung des Schedulers als struct bietet eine hohen Grad an Erweiterbarkeit und Flexibilität. Jedoch kann durch einen fehlerhaft implementierten Scheduler das komplette System lahmgelegt und untergraben werden.
+
 \begin{thebibliography}{999}
-\bibitem{bib-memory}
-http://www.nongnu.org/avr-libc/user-manual/malloc.html
+\bibitem{bib-memory} \url{http://www.nongnu.org/avr-libc/user-manual/malloc.html}
 \end{thebibliography}
 
 \cleardoublepage
