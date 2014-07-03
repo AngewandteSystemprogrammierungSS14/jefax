@@ -1,7 +1,8 @@
 #include "car_control.h"
-//#include "../../motor_api/PWM_driver.h"
+#include "../../motor_api/PWM_driver.h"
 #include "shell.h"
 #include "scheduler.h"
+#include "usart.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -17,15 +18,18 @@ void processCarMessage(char *data)
     } else if (*data == 's') {
         toChange = MIN(INT16_MAX / 10, INT16_MAX - abs(speed));
         speed -= toChange;
-    }
+    } else if (*data == 'i') {
+		print("Info:\r\n");
+		//print(itoa(speed, str, ));
+	}
 
-    //carSetSpeed(speed);
+    carSetSpeed(speed);
 }
 
 int carTask()
 {
-    //motorInitDriver();
-    //setMessageCallback(processCarMessage);
+    motorInitDriver();
+    setMessageCallback(processCarMessage);
 
     while (1) {
         sleep(1000);

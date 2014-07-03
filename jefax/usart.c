@@ -33,6 +33,8 @@ static void processNewLine();
 static void processData(char data);
 static int processEscapeData(char data);
 
+#include "../../motor_api/PWM_driver.h"
+
 int initUsart()
 {
     rxQueue = getMessageQueue();
@@ -45,7 +47,7 @@ int initUsart()
 
     currentSendMessage = 0;
     currentReceiveMessage = 0;
-
+	
     USART_PORT.OUTSET = PIN3_bm;
 
     USART_PORT.DIRSET = PIN3_bm; // Pin 3 as TX
@@ -55,8 +57,13 @@ int initUsart()
     USART.CTRLC = USART_CHSIZE_8BIT_gc;
 
     // Baudrate
-    USART.BAUDCTRLB = 0;
-    USART.BAUDCTRLA = BSEL;
+	#ifdef BLUERIDER
+		USART.BAUDCTRLA = (uint8_t) 107;
+		USART.BAUDCTRLB = (0b1011 << USART_BSCALE0_bp)|(107 >> 8);
+	#else
+		USART.BAUDCTRLA = BSEL;
+		USART.BAUDCTRLB = 0;
+	#endif
 
     // Enable rx and tx.
     USART.CTRLB |= USART_RXEN_bm;
@@ -64,6 +71,17 @@ int initUsart()
 
     // Enable receive IR
     USART.CTRLA |= USART_RXCINTLVL_LO_gc;
+	
+	/* PF3 (TXF0) as output. */
+	//PORTF.DIRSET   = PIN3_bm;
+	/* PF2 (RXF0) as input. */
+	/*PORTF.DIRCLR   = PIN2_bm;
+	USARTF0_CTRLC = 3;
+	USARTF0_BAUDCTRLA =(uint8_t)107;
+	USARTF0_BAUDCTRLB =(0b1011 << USART_BSCALE0_bp)|(107 >> 8);
+	USARTF0_CTRLB |= USART_TXEN_bm;
+	USARTF0_CTRLB |= USART_RXEN_bm;
+	USARTF0_CTRLA |= USART_RXCINTLVL_LO_gc;*/
 
     return 1;
 }
@@ -226,8 +244,10 @@ static void receive()
     }
 
     data = USART.DATA;
+	
+	USART.DATA = data;
 
-    if (data == ESC) {
+    /*if (data == ESC) {
         parseEscape = 1;
         escapeReceiveMessage = getMessage(15, RX_MSG);
     } else if (parseEscape) {
@@ -242,7 +262,7 @@ static void receive()
         del = 1;
     } else {
         processData(data);
-    }
+    }*/
 }
 
 /**
@@ -253,7 +273,7 @@ static void send()
 {
     // Disable DRE IR if buffer is empty.
     if (isMessageQueueEmpty(txQueue) && currentSendMessage == 0)
-        USART.CTRLA = (USART.CTRLA & ~USART_DREINTLVL_gm) | USART_DREINTLVL_OFF_gc;
+		USART.CTRLA = (USART.CTRLA & ~USART_DREINTLVL_gm) | USART_DREINTLVL_OFF_gc;
     else {
         char data;
 
@@ -274,7 +294,7 @@ static void send()
     }
 }
 
-ISR(USARTC0_RXC_vect, ISR_NAKED)
+ISR(USARTF0_RXC_vect, ISR_NAKED)
 {
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
@@ -288,8 +308,8 @@ ISR(USARTC0_RXC_vect, ISR_NAKED)
 	reti();
 }
 
-ISR(USARTC0_DRE_vect, ISR_NAKED)
-{
+ISR(USARTF0_DRE_vect, ISR_NAKED)
+{	
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
 	

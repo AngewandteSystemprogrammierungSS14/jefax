@@ -148,13 +148,13 @@ int hasRunningTask()
 
 static int idleTaskFunction()
 {
-	uint8_t led = 0;
-	
+	//uint8_t led = 0;
+	volatile int i = 0;
 	while (1) {
-		setLED(~(1 << led++));
-		//_delay_ms(500);
-		if (led == 8)
-			led = 0;
+		//setLED(~(1 << led++));
+		++i;
+		/*if (led == 8)
+			led = 0;*/
 	}
 	
 	return 0;

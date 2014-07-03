@@ -15,19 +15,19 @@ extern task_t TASKS[];
 // Prototypes
 static void initTimer();
 static void init32MHzClock();
-static int runDispatcher();
-static void dispatch(task_t *p_task);
+static void init32MHzClock2();
+//static int runDispatcher();
+//static void dispatch(task_t *p_task);
 
-static task_t dispatcherTask = {runDispatcher, 255, READY, 0, {0}};
+//static task_t dispatcherTask = {runDispatcher, 255, READY, 0, {0}};
 
 void initDispatcher()
 {
 	initScheduler(getRRScheduler());
-	initLED();
+	//initLED();
 	
 	init32MHzClock();
 	initUsart();
-	enableInterrupts();
 	initTimer();
 	
 	// Save the main context
@@ -35,13 +35,27 @@ void initDispatcher()
 	main_stackpointer = (uint8_t *) SP;
 	
 	// Switch to dispatcher task
-	initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);
+	/*initTask(&dispatcherTask);
+	SP = (uint16_t) (dispatcherTask.stackpointer);*/
 	
-	DISABLE_TIMER(TCC0);
+	//DISABLE_TIMER(TCC0);
+	//RESTORE_CONTEXT();
+	
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+	enableInterrupts();
 	RESTORE_CONTEXT();
-
 	reti();
+
+	//reti();
+}
+
+static void init32MHzClock2()
+{
+	OSC_CTRL |= OSC_RC32MEN_bm;
+	while(!(OSC_STATUS & OSC_RC32MRDY_bm))
+		;
+	CCP = 0xD8;
+	CLK_CTRL = (1 << CLK_SCLKSEL_gp);
 }
 
 static void init32MHzClock()
@@ -90,22 +104,22 @@ void setInterruptTime(unsigned int p_msec)
 }
 
 /* Function for dispatcher task. */
-static int runDispatcher()
+/*static int runDispatcher()
 {
-	task_t* toDispatch = schedule();
+	
 	dispatch(toDispatch);
 	return 0;
 }
 
 /* Change to the given task. */
-static void dispatch(task_t *p_task)
+/*static void dispatch(task_t *p_task)
 {
 	SP = (uint16_t) (p_task->stackpointer);
 	
 	ENABLE_TIMER(TCC0, TIMER_PRESCALER);
 	RESTORE_CONTEXT();
 	reti();
-}
+}*/
 
 ISR(TCC0_OVF_vect, ISR_NAKED)
 {
@@ -114,10 +128,14 @@ ISR(TCC0_OVF_vect, ISR_NAKED)
 	
 	// set stackpointer to default task
 	ENTER_SYSTEM_STACK();
-	initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);
 	
-	DISABLE_TIMER(TCC0);
+	//!! call scheduler
+	task_t* toDispatch = schedule();
+	SP = (uint16_t) (toDispatch->stackpointer);
+	//initTask(&dispatcherTask);
+	//SP = (uint16_t) (dispatcherTask.stackpointer);
+	
+	//DISABLE_TIMER(TCC0);
 	RESTORE_CONTEXT();
 	reti();
 }

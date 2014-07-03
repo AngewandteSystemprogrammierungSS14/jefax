@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <avr/interrupt.h>
 
+#define TIMER_CLOCK TCF1
 #define DEF_TIMER_COUNT 10
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 
@@ -26,11 +27,11 @@ static void decreaseTimers();
 int initTimerSystem()
 {
 	// Set 16 bit timer
-	TCD0.CTRLA = TC_CLKSEL_OFF_gc; // timer off
-	TCD0.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
-	TCD0.PER = MS_TO_TIMER(100, TIMER_PRESCALER);
-	TCD0.CNT = 0x00;
-	TCD0.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
+	TIMER_CLOCK.CTRLA = TC_CLKSEL_OFF_gc; // timer off
+	TIMER_CLOCK.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
+	TIMER_CLOCK.PER = MS_TO_TIMER(100, TIMER_PRESCALER);
+	TIMER_CLOCK.CNT = 0x00;
+	TIMER_CLOCK.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
 	
 	return 0;
 }
@@ -56,7 +57,7 @@ int addTimer(timer_t p_timer)
 	updatePeriod();
 	
 	if(timerCount >= 1)
-		ENABLE_TIMER(TCD0, TIMER_PRESCALER);
+		ENABLE_TIMER(TIMER_CLOCK, TIMER_PRESCALER);
 	
 	int result = timerCount - 1;
 	
@@ -75,11 +76,11 @@ static void updatePeriod()
 			nextMS = timers[i].ms;
 	}
 	
-	TCD0.CNT = 0;
-	TCD0.PER = MS_TO_TIMER(nextMS, TIMER_PRESCALER);
+	TIMER_CLOCK.CNT = 0;
+	TIMER_CLOCK.PER = MS_TO_TIMER(nextMS, TIMER_PRESCALER);
 }
 
-ISR(TCD0_OVF_vect,ISR_NAKED)
+ISR(TIMER_CLOCK_OVF_vect,ISR_NAKED)
 {
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
@@ -95,7 +96,7 @@ ISR(TCD0_OVF_vect,ISR_NAKED)
 
 static void decreaseTimers(const int p_ms)
 {
-	unsigned int ms = TIMER_TO_MS(TCD0.PER, TIMER_PRESCALER);
+	unsigned int ms = TIMER_TO_MS(TIMER_CLOCK.PER, TIMER_PRESCALER);
 	unsigned int toDec;
 	int i;
 	for(i = 0; i < timerCount; ++i)
@@ -122,5 +123,5 @@ static void timerElapsed(const int p_index)
 	--timerCount;
 	
 	if(timerCount == 0)
-		DISABLE_TIMER(TCD0);
+		DISABLE_TIMER(TIMER_CLOCK);
 }
