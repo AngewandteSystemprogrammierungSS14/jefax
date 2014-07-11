@@ -13,22 +13,17 @@
 extern task_t TASKS[];
 
 // Prototypes
-static void initTimer();
+static void initTimeSliceTimer();
 static void init32MHzClock();
 static void init32MHzClock2();
-//static int runDispatcher();
-//static void dispatch(task_t *p_task);
-
-//static task_t dispatcherTask = {runDispatcher, 255, READY, 0, {0}};
 
 void initDispatcher()
 {
 	initScheduler(getRRScheduler());
-	//initLED();
 	
 	init32MHzClock();
 	initUsart();
-	initTimer();
+	initTimeSliceTimer();
 	
 	// Save the main context
 	SAVE_CONTEXT();
@@ -44,9 +39,7 @@ void initDispatcher()
 	SP = (uint16_t) (getRunningTask()->stackpointer);
 	enableInterrupts();
 	RESTORE_CONTEXT();
-	reti();
-
-	//reti();
+	return;
 }
 
 static void init32MHzClock2()
@@ -86,7 +79,7 @@ static void init32MHzClock()
 }
 
 /* Initializes timer for time slices.*/
-static void initTimer()
+static void initTimeSliceTimer()
 {
 	// Set 16 bit timer
 	TCC0.CTRLA = TIMER_PRESCALER; // 256 prescaler -> 3900 / sec -> 65536 max.

@@ -1,10 +1,3 @@
-/*
- * scheduler.c
- *
- * Created: 05.05.2014 09:45:40
- *  Author: Fabian
- */ 
-
 #include "scheduler.h"
 #include "atomic.h"
 #include "timer.h"
@@ -15,6 +8,7 @@
 
 /* prototypes */
 static int initTaskLists();
+static void setFirstRunningTask();
 static void sleepTimerCallback(void *arg);
 static int idleTaskFunction();
 
@@ -41,6 +35,7 @@ int initScheduler(scheduler_t *p_defaultScheduler)
 		return ret;
 		
 	setScheduler(p_defaultScheduler);
+	setFirstRunningTask();
 	
 	return 0;
 }
@@ -56,17 +51,23 @@ static int initTaskLists()
 	if(taskCount <= 0)
 		return -1;
 	
-	runningTask = &idleTask;
-	
+	// add tasks to ready list
 	int i;
-	for(i = 0; i < taskCount; ++i)
-	{
+	for(i = 0; i < taskCount; ++i) {
 		TASKS[i].state = READY;
 		pushTaskBack(&readyList, &TASKS[i]);
 	}
 	
 	return 0;
 }
+
+static void setFirstRunningTask()
+{
+	// init with idleTask, then let scheduler choose
+	runningTask = &idleTask;
+	schedule();
+}
+
 
 task_t* schedule()
 {
@@ -148,13 +149,9 @@ int hasRunningTask()
 
 static int idleTaskFunction()
 {
-	//uint8_t led = 0;
 	volatile int i = 0;
 	while (1) {
-		//setLED(~(1 << led++));
 		++i;
-		/*if (led == 8)
-			led = 0;*/
 	}
 	
 	return 0;

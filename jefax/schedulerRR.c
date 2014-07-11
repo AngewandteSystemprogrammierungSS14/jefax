@@ -1,10 +1,3 @@
-/*
- * schedulerRR.c
- *
- * Created: 17.05.2014 11:13:59
- *  Author: Fabian
- */ 
-
 #include "schedulerRR.h"
 #include "stddef.h"
 #include "utils.h"
