@@ -3,7 +3,7 @@
 #include "usart_ascii.h"
 #include "shell.h"
 #include "scheduler.h"
-#include "utils.h"
+#include "interrupt.h"
 #include "atomic.h"
 
 
@@ -295,7 +295,7 @@ static void send()
     }
 }
 
-ISR(USARTF0_RXC_vect, ISR_NAKED)
+/*ISR(USARTF0_RXC_vect, ISR_NAKED)
 {
     SAVE_CONTEXT();
     getRunningTask()->stackpointer = (uint8_t *) SP;
@@ -321,4 +321,4 @@ ISR(USARTC0_DRE_vect, ISR_NAKED)
     SP = (uint16_t) (getRunningTask()->stackpointer);
     RESTORE_CONTEXT();
     reti();
-}
+}*/

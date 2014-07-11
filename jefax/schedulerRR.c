@@ -1,7 +1,7 @@
 #include <avr/interrupt.h>
 #include <stddef.h>
 #include "schedulerRR.h"
-#include "utils.h"
+#include "interrupt.h"
 
 static void initSchedulerRR();
 static task_t* getNextTaskRR();

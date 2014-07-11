@@ -3,10 +3,8 @@
 #include "scheduler.h"
 #include "schedulerRR.h"
 #include "atomic.h"
-#include "utils.h"
-#include "jefax_xmega128.h"
+#include "interrupt.h"
 #include "usart.h"
-
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 
@@ -23,7 +21,7 @@ void initDispatcher()
 	initScheduler(getRRScheduler());
 	
 	init32MHzClock();
-	initUsart();
+	//initUsart();
 	initTimeSliceTimer();
 	
 	// Save the main context
@@ -91,17 +89,4 @@ void setInterruptTime(unsigned int p_msec)
 	exitAtomicBlock(irEnabled);
 }
 
-ISR(TCC0_OVF_vect, ISR_NAKED)
-{
-	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
-	
-	ENTER_SYSTEM_STACK();
-	
-	// call scheduler
-	schedule();
-	SP = (uint16_t) (getRunningTask()->stackpointer);
-
-	RESTORE_CONTEXT();
-	reti();
-}
+JEFAX_ISR(TCC0_OVF_vect, schedule)

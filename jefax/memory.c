@@ -4,7 +4,7 @@
 
 #include "memory.h"
 #include "atomic.h"
-#include "utils.h"
+#include "system.h"
 #include <avr/io.h>
 
 // Defined from linker script

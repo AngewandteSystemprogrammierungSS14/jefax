@@ -1,14 +1,8 @@
-/* utils contains some functions and macros that com in handy in
- * every day use. */
-
 #pragma once
 
-#include <stdint.h>
-
-extern uint8_t *main_stackpointer;
-#define ENTER_SYSTEM_STACK() SP = (uint16_t) main_stackpointer
-
-#define RET() asm volatile("ret");
+#include <avr/interrupt.h>
+#include "system.h"
+#include "scheduler.h"
 
 /* Disables interrupts and saves the working registers and the sreg on the stack. */
 #define SAVE_CONTEXT()										\
@@ -96,6 +90,20 @@ extern uint8_t *main_stackpointer;
 #define MS_TO_TIMER(ms, prescaler) ((uint16_t) (ms * ((F_CPU / MS_PER_SEC) / getPrescalerValue(prescaler))))
 #define TIMER_TO_MS(cnt, prescaler) ((uint16_t) ((cnt * getPrescalerValue(prescaler)) / (F_CPU / MS_PER_SEC)))
 #define FORCE_INTERRUPT(timer) timer.CNT = timer.PER - 1
+
+/* The jefax ISR saves the context of the preempted (running) task, executes
+ * the given function and restores the context of the running task. */
+#define JEFAX_ISR(vect, func)								\
+ISR(vect, ISR_NAKED)										\
+{															\
+	SAVE_CONTEXT();											\
+	getRunningTask()->stackpointer = (uint8_t *) SP;		\
+	ENTER_SYSTEM_STACK();									\
+	func();													\
+	SP = (uint16_t) (getRunningTask()->stackpointer);		\
+	RESTORE_CONTEXT();										\
+	reti();													\
+}
 
 void enableInterrupts();
 unsigned int getPrescalerValue(uint8_t p_prescaler);

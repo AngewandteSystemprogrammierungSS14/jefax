@@ -3,7 +3,7 @@
 #include "timer.h"
 #include "task.h"
 #include "atomic.h"
-#include "utils.h"
+#include "interrupt.h"
 #include "scheduler.h"
 
 #define TIMER_CLOCK TCF1
@@ -76,19 +76,7 @@ static void updatePeriod()
 	TIMER_CLOCK.PER = MS_TO_TIMER(nextMS, TIMER_PRESCALER);
 }
 
-ISR(TIMER_CLOCK_VECT, ISR_NAKED)
-{
-	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
-	
-	ENTER_SYSTEM_STACK();
-	
-	decreaseTimers();
-	
-	SP = (uint16_t) (getRunningTask()->stackpointer);
-	RESTORE_CONTEXT();
-	reti();
-}
+JEFAX_ISR(TIMER_CLOCK_VECT, decreaseTimers)
 
 static void decreaseTimers()
 {

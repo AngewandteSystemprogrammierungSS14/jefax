@@ -2,7 +2,7 @@
 #include "scheduler.h"
 #include "atomic.h"
 #include "timer.h"
-#include "utils.h"
+#include "interrupt.h"
 #include "jefax_xmega128.h"
 
 static int initTaskLists();
