@@ -1,8 +1,8 @@
 /**
  * @file usart_queue.h
  *
- * This file contains the messageQueue buffer
- * type and functions used for USART and the jefax shell.
+ * This file contains the messageQueue buffer type and
+ * functions used for USART communication and the jefax shell.
  *
  * It uses the dynamic memory management for buffer memory allocation.
  * Heap utilization:

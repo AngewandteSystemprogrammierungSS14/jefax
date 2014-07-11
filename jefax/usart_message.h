@@ -1,8 +1,8 @@
 /**
  * @file usart_message.h
  *
- * This file contains the message buffer
- * type and functions used for USART and the jefax shell.
+ * This file contains the message buffer type and
+ * functions used for USART communication and the jefax shell.
  *
  * It uses the dynamic memory management for buffer memory allocation.
  */
@@ -15,8 +15,6 @@ typedef enum {
     TX_MSG,
     RX_MSG
 } MSG_TYPE;
-
-// TODO: Put struct declaration in source file
 
 struct message {
     char *data;

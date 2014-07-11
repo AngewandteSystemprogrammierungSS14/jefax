@@ -1,9 +1,5 @@
-/*
- * utils.h
- *
- * Created: 21.05.2014 13:19:42
- *  Author: Fabian
- */ 
+/* utils contains some functions and macros that com in handy in
+ * every day use. */
 
 #pragma once
 
@@ -12,9 +8,9 @@
 extern uint8_t *main_stackpointer;
 #define ENTER_SYSTEM_STACK() SP = (uint16_t) main_stackpointer
 
-/**
- * Disables interrupts and saves the working registers and the sreg on the stack.
- */
+#define RET() asm volatile("ret");
+
+/* Disables interrupts and saves the working registers and the sreg on the stack. */
 #define SAVE_CONTEXT()										\
 	asm volatile (	"cli							\n\t"	\
 					"push	r0						\n\t"	\
@@ -54,10 +50,8 @@ extern uint8_t *main_stackpointer;
 					"clr	r1						\n\t"	\
 )
 
-/**
- * Restores the working registers and the sreg from the stack and
- * enables interrupts.
- */
+/* Restores the working registers and the sreg from the stack
+ * and enables interrupts. */
 #define RESTORE_CONTEXT()									\
 	asm volatile (	"pop	r0						\n\t"	\
 					"out	__SREG__, r0			\n\t"	\

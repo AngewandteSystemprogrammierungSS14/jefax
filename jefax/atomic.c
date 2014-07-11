@@ -1,15 +1,9 @@
-/*
- * atomic.c
- *
- * Created: 01.05.2014 11:55:28
- *  Author: Fabian
- */ 
-
-#include "atomic.h"
 #include <avr/interrupt.h>
+#include "atomic.h"
 
 uint8_t enterAtomicBlock()
 {
+	// check if interrupt flag is set
 	uint8_t result = SREG & 0x80;
 	cli();
 	return result;
@@ -17,6 +11,7 @@ uint8_t enterAtomicBlock()
 
 void exitAtomicBlock(const uint8_t p_interruptsEnabled)
 {
+	// only set interrupt flag if it was set before entering the atomic block
 	if(p_interruptsEnabled)
 		sei();
 	else

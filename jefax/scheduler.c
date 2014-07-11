@@ -1,12 +1,10 @@
+#include <avr/interrupt.h>
 #include "scheduler.h"
 #include "atomic.h"
 #include "timer.h"
 #include "utils.h"
 #include "jefax_xmega128.h"
-#include <avr/interrupt.h>
 
-
-/* prototypes */
 static int initTaskLists();
 static void setFirstRunningTask();
 static void sleepTimerCallback(void *arg);
@@ -19,6 +17,7 @@ static taskList_t readyList;
 static taskList_t blockingList;
 static scheduler_t *scheduler;
 
+/* idleTask runs if no other task can be found to be scheduled. */
 static task_t idleTask = { idleTaskFunction, 255, READY, 0, {0} };
 
 int initScheduler(scheduler_t *p_defaultScheduler)
@@ -69,13 +68,13 @@ static void setFirstRunningTask()
 }
 
 
-task_t* schedule()
+void schedule()
 {
 	runningTask = scheduler->getNextTask();
+	// no task was found, so schedule idleTask
 	if(runningTask == NULL)
 		runningTask = &idleTask;
 	runningTask->state = RUNNING;
-	return runningTask;
 }
 
 void yield()

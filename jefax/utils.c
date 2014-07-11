@@ -1,5 +1,5 @@
-#include "utils.h"
 #include <avr/interrupt.h>
+#include "utils.h"
 
 uint8_t *main_stackpointer;
 

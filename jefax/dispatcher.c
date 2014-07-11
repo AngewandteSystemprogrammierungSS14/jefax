@@ -1,3 +1,4 @@
+#include <avr/interrupt.h>
 #include "dispatcher.h"
 #include "scheduler.h"
 #include "schedulerRR.h"
@@ -5,7 +6,7 @@
 #include "utils.h"
 #include "jefax_xmega128.h"
 #include "usart.h"
-#include <avr/interrupt.h>
+
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 
@@ -29,17 +30,11 @@ void initDispatcher()
 	SAVE_CONTEXT();
 	main_stackpointer = (uint8_t *) SP;
 	
-	// Switch to dispatcher task
-	/*initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);*/
-	
-	//DISABLE_TIMER(TCC0);
-	//RESTORE_CONTEXT();
-	
 	SP = (uint16_t) (getRunningTask()->stackpointer);
 	enableInterrupts();
 	RESTORE_CONTEXT();
-	return;
+	
+	RET();
 }
 
 static void init32MHzClock2()
@@ -96,39 +91,17 @@ void setInterruptTime(unsigned int p_msec)
 	exitAtomicBlock(irEnabled);
 }
 
-/* Function for dispatcher task. */
-/*static int runDispatcher()
-{
-	
-	dispatch(toDispatch);
-	return 0;
-}
-
-/* Change to the given task. */
-/*static void dispatch(task_t *p_task)
-{
-	SP = (uint16_t) (p_task->stackpointer);
-	
-	ENABLE_TIMER(TCC0, TIMER_PRESCALER);
-	RESTORE_CONTEXT();
-	reti();
-}*/
-
 ISR(TCC0_OVF_vect, ISR_NAKED)
 {
 	SAVE_CONTEXT();
 	getRunningTask()->stackpointer = (uint8_t *) SP;
 	
-	// set stackpointer to default task
 	ENTER_SYSTEM_STACK();
 	
-	//!! call scheduler
-	task_t* toDispatch = schedule();
-	SP = (uint16_t) (toDispatch->stackpointer);
-	//initTask(&dispatcherTask);
-	//SP = (uint16_t) (dispatcherTask.stackpointer);
-	
-	//DISABLE_TIMER(TCC0);
+	// call scheduler
+	schedule();
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+
 	RESTORE_CONTEXT();
 	reti();
 }

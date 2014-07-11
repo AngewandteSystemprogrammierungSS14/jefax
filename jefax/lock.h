@@ -1,9 +1,5 @@
-/*
- * lock.h
- *
- * Created: 01.05.2014 09:51:34
- *  Author: Fabian
- */ 
+/* The lock component provides severals structs and functions
+ * for synchronisation purpose. */
 
 #pragma once
 
@@ -14,25 +10,21 @@
 #define DECLARE_MUTEX(name) mutex_t name = { { 0, 1, { { {0}, DEF_TASK_LIST_SIZE, 0 } } } }
 #define DECLARE_CONDITION(name) condition_t name = { { { {0}, DEF_TASK_LIST_SIZE, 0 } } }
 
-typedef struct  
-{
+typedef struct {
 	taskList_t queue;
 } signal_t;
 
-typedef struct  
-{
+typedef struct {
 	volatile unsigned int value;
 	volatile unsigned int maxValue;
 	signal_t signal;
 } semaphore_t;
 
-typedef struct  
-{
+typedef struct {
 	semaphore_t lock;
 } mutex_t;
 
-typedef struct
-{
+typedef struct {
 	signal_t signal;
 } condition_t;
 
