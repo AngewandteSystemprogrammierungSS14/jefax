@@ -1,3 +1,7 @@
+/* The interrupt component of jefax provides macros and functions to work
+ * with interrupts.
+ * The usage of these functions is recommend to ensure consistency in jefax. */
+
 #pragma once
 
 #include <avr/interrupt.h>

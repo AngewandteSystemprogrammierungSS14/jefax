@@ -6,8 +6,6 @@
 static void initSchedulerRR();
 static task_t* getNextTaskRR();
 static void readyUpBlockingTasksRR();
-static int insertTaskRR(taskList_t *p_tasks, task_t *p_task);
-static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task);
 static void taskStateChangedRR(task_t* p_task);
 static void taskWokeUpRR(task_t* p_task);
 
@@ -21,7 +19,7 @@ scheduler_t *getRRScheduler()
 static void initSchedulerRR()
 {
 	// sorts tasks depending on their priority (ascending)
-	sortPriority(schedulerRR.readyList);
+	sortPriorityAsc(schedulerRR.readyList);
 }
 
 static task_t* getNextTaskRR()
@@ -57,7 +55,7 @@ static task_t* getNextTaskRR()
 		
 	//put runningTask in correct List
 	if(hasRunningTask() && TASK_IS_READY(getRunningTask()))
-		insertTaskRR(schedulerRR.readyList, getRunningTask());
+		insertTaskPriorityAsc(schedulerRR.readyList, getRunningTask());
 	else if(hasRunningTask() && TASK_IS_BLOCKING(getRunningTask()))
 		pushTaskBack(schedulerRR.blockingList, getRunningTask());
 	
@@ -70,31 +68,10 @@ static void readyUpBlockingTasksRR()
 	// for all blocking task check if their state changed to non blocking
 	for(i = 0; i < schedulerRR.blockingList->count; ++i) {
 		if(!TASK_IS_BLOCKING(schedulerRR.blockingList->elements[i])) {
-			insertTaskRR(schedulerRR.readyList, schedulerRR.blockingList->elements[i]);
+			insertTaskPriorityAsc(schedulerRR.readyList, schedulerRR.blockingList->elements[i]);
 			removeTask(schedulerRR.blockingList, i);
 		}
 	}
-}
-
-static int insertTaskRR(taskList_t *p_tasks, task_t *p_task)
-{	
-	int index = getInsertIndexRR(p_tasks, p_task);
-	return insertTask(p_tasks, p_task, index);
-}
-
-static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
-{
-	int result;
-	
-	if(p_tasks->count == 0)
-		return 0;
-			
-	result = 0;
-	// find correct index for corresponding priority
-	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
-		++result;
-	
-	return result;
 }
 
 static void taskStateChangedRR(task_t* p_task)
@@ -110,6 +87,6 @@ static void taskStateChangedRR(task_t* p_task)
 /* runs in interrupt context, so calling forceContextSwitch() is not possible */
 static void taskWokeUpRR(task_t* p_task)
 {
-	if(!hasRunningTask() || (p_task->priority < getRunningTask()->priority))
+	if(!hasRunningTask() || (CMP_PRIORITY(p_task, getRunningTask()) > 0 ))
 		FORCE_INTERRUPT(TCC0);
 }

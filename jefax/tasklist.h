@@ -5,11 +5,13 @@
 
 #include "task.h"
 
-#define DEF_TASK_LIST_SIZE 10
+#ifndef TASK_LIST_SIZE
+	#define TASK_LIST_SIZE 10
+#endif
 
 typedef struct
 {
-	task_t *elements[DEF_TASK_LIST_SIZE];
+	task_t *elements[TASK_LIST_SIZE];
 	int size;
 	int count;
 } taskList_t;
@@ -29,6 +31,10 @@ task_t* removeTask(taskList_t *p_list, const int p_index);
 int containsTask(taskList_t *p_list, task_t *p_task);
 int isEmpty(taskList_t *p_list);
 
-/*Sorts the tasks in the given tasklist with bubble sort.
-  Lowest priority (highest value) comes first. */
-void sortPriority(taskList_t *p_list);
+/* Sorts the tasks in the given tasklist with bubble sort.
+   Ascending means highest priority (lowest value) has highest index.
+   Descending means highest priority (lowest value) has lowest index. */
+void sortPriorityAsc(taskList_t *p_list);
+void sortPriorityDesc(taskList_t *p_list);
+int insertTaskPriorityAsc(taskList_t *p_list, task_t *p_task);
+int insertTaskPriorityDesc(taskList_t *p_list, task_t *p_task);

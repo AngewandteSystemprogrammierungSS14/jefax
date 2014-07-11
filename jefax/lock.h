@@ -5,10 +5,10 @@
 
 #include "tasklist.h"
 
-#define DECLARE_SIGNAL(name) signal_t name = { { {0}, DEF_TASK_LIST_SIZE, 0 } }
-#define DECLARE_SEMAPHORE(name, val) semaphore_t name = { 0, val, { { {0}, DEF_TASK_LIST_SIZE, 0 } } }
-#define DECLARE_MUTEX(name) mutex_t name = { { 0, 1, { { {0}, DEF_TASK_LIST_SIZE, 0 } } } }
-#define DECLARE_CONDITION(name) condition_t name = { { { {0}, DEF_TASK_LIST_SIZE, 0 } } }
+#define DECLARE_SIGNAL(name) signal_t name = { { {0}, TASK_LIST_SIZE, 0 } }
+#define DECLARE_SEMAPHORE(name, val) semaphore_t name = { 0, val, { { {0}, TASK_LIST_SIZE, 0 } } }
+#define DECLARE_MUTEX(name) mutex_t name = { { 0, 1, { { {0}, TASK_LIST_SIZE, 0 } } } }
+#define DECLARE_CONDITION(name) condition_t name = { { { {0}, TASK_LIST_SIZE, 0 } } }
 
 typedef struct {
 	taskList_t queue;
