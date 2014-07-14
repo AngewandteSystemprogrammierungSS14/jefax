@@ -42,7 +42,7 @@ static task_t* getNextTaskRR()
 		result = getLast(schedulerRR.readyList);
 		
 		//next task would have lower prio, keep running task
-		if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) && result->priority > getRunningTask()->priority) {
+		if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) && CMP_PRIORITY(result, getRunningTask()) < 0) {
 			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
 		} else {
@@ -77,7 +77,7 @@ static void readyUpBlockingTasksRR()
 static void taskStateChangedRR(task_t* p_task)
 {
 	//check if there is any running task, check if high prior task got ready
-	if(hasRunningTask() && TASK_IS_READY(p_task) && p_task->priority < getRunningTask()->priority)
+	if(hasRunningTask() && TASK_IS_READY(p_task) && CMP_PRIORITY(p_task, getRunningTask()) > 0)
 		getRunningTask()->state = READY;
 	// if running task is not in running state anymore switch task
 	if(!hasRunningTask() || !TASK_IS_RUNNING(getRunningTask()))

@@ -22,7 +22,7 @@
 
 \title{Jefax}
 \subtitle{Ein Kernel für Atmels XMega}
-\author{FaMe \and JeGa}
+\author{Fabian Meyer \and Jens Gansloser}
 \date{\today \\ HTWG Konstanz}
 
 \lstdefinestyle{MyCStyle}{
@@ -57,7 +57,7 @@ Jefax ist ein einfacher Betriebssystemkernel, der preemptives Scheduling und dam
 
 \chapter{Tasks}
 \label{chap:tasks}
-Wie in einem multitasking Betriebssystem üblich, können vom Benutzer verschiedene Tasks erzeugt werden die vom Scheduler geschedult werden. Intern werden Tasks für den Dispatcher sowie optional für die Shell verwendet. Jede Tasks besitzt ihren eigenen Task-Kontext. Bei einem Kontextwechsel wird dieser gesichert bzw. wiederhergestellt. Verschiedene Schedulingverfahren erlauben das quasi-parallele Ausführen der Tasks. \\
+Wie in einem Multitasking-Betriebssystem üblich, können vom Benutzer verschiedene Tasks erzeugt werden, die vom Scheduler geschedult werden. Intern werden Tasks für den Dispatcher sowie optional für die Shell verwendet. Jede Tasks besitzt ihren eigenen Task-Kontext. Bei einem Kontextwechsel wird dieser gesichert bzw. wiederhergestellt. Verschiedene Schedulingverfahren erlauben das quasi-parallele Ausführen der Tasks.\\
 
 \begin{lstlisting}[title=task.h]
 typedef struct {
@@ -72,21 +72,21 @@ typedef struct {
 } task_t;
 \end{lstlisting}
 
-Ein Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese besteht aus:
+Eine Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese besteht aus:
 
 \begin{itemize}
 \item Pointer auf die Task Funktion
-\item Priorität der Tasks
+\item Priorität der Task
 \item Taskstatus (READY, RUNNING, BLOCKING)
 \item Stackpointer, der auf die nächste freie Speicheradresse auf dem Stack zeigt.
 \item Ein Feld von \lstinline$uint8_t$, welches den Stack darstellt.
 \end{itemize}
 
-Der Stack besitzt eine feste Größe, welche durch das define \lstinline$STACK_SIZE$ festgelegt werden kann. Wichtig zu wissen ist hierebi, dass der Stack sich nicht im Compiler-spezifischen Stackbereich befindet (stack section - beginnend von der letzten Adresse im SRAM), sondern in der data  Section.
+Der Stack besitzt zur Laufzeit eine feste Größe, welche durch das Symbol \lstinline$STACK_SIZE$ festgelegt werden kann. Dieses Symbol kann zur Kompilierzeit definiert werden, ansonsten wird ein Standardwert verwendet. Wichtig zu wissen ist hierbei, dass der Stack sich nicht im Compiler-spezifischen Stackbereich befindet (Stack-Section - beginnend von der letzten Adresse im SRAM), sondern in der Data-Section.
 
 \section{API}
 \label{subsec:tasks-api}
-Zum Erzeugen einer Task wird die Funktion \lstinline$initTask()$ verwendet. Aufgabe dieser Funktion ist es, den Stack sowie den Stackpointer zu initialisieren.
+Zum Erzeugen einer Task wird die Funktion \lstinline$initTask()$ verwendet. Aufgabe dieser Funktion ist es, den Stack sowie den Stackpointer zu initialisieren. Der Funktionspointer der Taskfunktion muss vor dem Aufruf von \lstinline$initTask()$ gesetzt werden.
 
 \begin{lstlisting}
 void initTask(task_t *task);
@@ -102,7 +102,7 @@ task_t TASKS[] = {
 };
 \end{lstlisting}
 
-Ein Eintrag im TASKS Feld besteht aus:
+Ein Eintrag im \lstinline$TASKS$ Feld besteht aus:
 
 \begin{itemize}
 \item Pointer auf die Task-Funktion
@@ -122,7 +122,7 @@ task->stackpointer = task->stack + STACK_SIZE - 1;
 
 initialisiert. Anschließend wird die Adresse der Task Funktion auf dem Stack abgelegt (bei den XMega128 3 Byte). Zuletzt werden noch die 32 Arbeitsregister sowie das Statusregister auf dem Stack benötigt.
 
-Um vom Dispatcher/Scheduler/... auf die globale TASKS Struktur zuzugreifen, wird dieser in den jeweiligen Dateien als extern deklariert.
+Damit auch andere Komponenten (z.B. Scheduler) auf die globale \lstinline$TASKS$ Struktur zugreifen können, wird dieses Feld in den jeweiligen Dateien als extern deklariert.
 
 \begin{lstlisting}
 extern task_t TASKS[];
@@ -130,77 +130,93 @@ extern task_t TASKS[];
 
 \chapter{Scheduling}
 \label{chap:scheduling}
-Essentieller Bestandteil von Jefax ist das Scheduling. Die Tasks im Kernel laufen preemptiv, d.h. sie können unterbrochen und ausgewechselt werden. Um einen sicheren quasiparallelen Ablauf zu garantieren, muss beim austausch der Tasks, deren Kontext gesuchert werden. (siehe \refnn{sec:dispatcher}.\\
-Die 2 Kernbestandteile des Scheduling sind der Dispatcher und der Scheduler. Der Standardscheduler realisiert ein prioritätengesteuertes Round-Robin-Verfahren. Tasks erhalten eine feste Zeitscheibe, in der sie die CPU erhalten. Ist diese Zeitscheibe abgelaufen, werden sie durch den Dispatcher unterbrochen.
+Essentieller Bestandteil von Jefax ist das Scheduling. Die Tasks im Kernel laufen preemptiv, d.h. sie können unterbrochen und ausgewechselt werden. Um einen sicheren quasiparallelen Ablauf zu garantieren, muss beim Austausch der Tasks deren Kontext gesichert werden (siehe \refnn{sec:dispatcher}.\\
+Die 2 Kernbestandteile des Scheduling sind der Dispatcher und der Scheduler. Der Standardscheduler realisiert ein prioritätengesteuertes Round-Robin-Verfahren. Tasks werden können durch höherpriore Tasks unterbrochen und verdrängt werden. Haben die mehrere Tasks die gleiche Priorität, erhalten sie reihum eine feste Zeitscheibe, in der sie Zugriff auf die CPU erhalten. Ist diese Zeitscheibe abgelaufen, werden sie durch den Dispatcher unterbrochen und ausgewechselt.
 
 \section{Dispatcher}
 \label{sec:dispatcher}
-Der Dispatcher übernimmt das Auswechseln der Tasks. Das zentrale Element des Dispatchers ist ein Timerinterrupt. Dieser schlägt nach einem initial festgelegten Wert zu. Hierdurch wird der Dispatcher und damit der Auswechselvorgang gestartet. Der Wert der Zeitscheibe kann jedoch auch manuell, nach der Initialisierung des Dispatcher, mit
+Der Dispatcher übernimmt das Auswechseln und unterbrechen der Tasks. Das zentrale Element des Dispatchers ist ein Timerinterrupt, der in Regelmäßigen Abständen zuschlägt. Er sichert den Kontext der unterbrochenen Task und wechselt eine andere Task wieder ein.
+
+\subsection{API}
+\label{subsec:dispatcher-api}
+
+Die Zeitscheibe nach der der Dispatcher zuschlägt kann zur Laufzeit durch den Aufruf der Funktion 
 
 \begin{lstlisting}
 void setInterruptTime(unsigned int p_msec);
 \end{lstlisting}
 
-gesetzt werden.\\
-Während der Interrupt Service Routine (ISR) des Timerinterrupts wird zuerst der Kontext der unterbrochenen Task gesichert. Zum Kontext gehören folgende Speicherbereiche:
+gesetzt werden. Die Funktion bietet eine Auflösung im Millisekundenbereich.
 
-\begin{itemize}
-	\item Sämtliche Register des XMega (R0 bis R31)
-	\item Das Statusregister (SREG)
-	\item Der Stackpointer
-\end{itemize}
-
-Die Register sowie das SREG werden auf dem Task eigenen Stack abgelegt. Der Stackpointer wiederrum wird direkt im Task Control Block (TCB) gesichert. Außerdem wird beim Auftritt der ISR der Program Counter (PC) automatisch auf dem Stack der Task abgelegt.\\
-Nach dem Sichern des Kontext wird in der ISR die Dispatcher Task geladen. Dabei handelt es sich um eine Task, die nicht vom Scheduler verwaltet wird. Der Dispatcher besitzt lediglich einen eigenen TCB und damit auch einen Stack, auf dem er arbeiten kann.\\
-
-Folgender Code Ausschnitt zeigt die ISR:
+\subsection{Implementierung}
+\label{subsec:dispatcher-impl}
+Bevor der Dispatcher genutzt werden kann muss die Funktion
 
 \begin{lstlisting}[title=dispatcher.c]
-ISR(TCC0_OVF_vect, ISR_NAKED)
+void initDispatcher()
 {
+	initScheduler(getRRScheduler());
+	
+	init32MHzClock();
+	initUsart();
+	initTimeSliceTimer();
+	
+	// Save the main context
 	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
+	main_stackpointer = (uint8_t *) SP;
 	
-	TODO: main stack context
-	
-	// set stackpointer to default task
-	initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);
-	
-	DISABLE_TIMER(TCC0);
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+	enableInterrupts();
 	RESTORE_CONTEXT();
-	reti();
+	
+	RET();
 }
 \end{lstlisting}
 
-In Zeile 3 und 4 wird der Kontext der aktuellen Task gesichert. Zeile 7 reinitialisiert die Dispatcher Task. Der Dispatcher beginnt bei jedem Aufruf von vorne, da dieser nicht wie eine gewöhnliche Task in einer Loop arbeitet. Hierdurch ist ein Speichern und Widerherstellen des Kontext des Dispatcher unnötig. Durch Zeile  8 und 11 wird der Kontext der Dispatcher Task geladen. Der Aufruf von \lstinline$reti()$ in Zeile 12 holt den PC vom Stack des Dispatcher und springt an diese Adresse. \lstinline$DISABLE_TIMER(TCC0)$ deaktiviert den Timer, der den Timerinterrupt des Dispatcher auslöst. So wird verhindert, dass die Ausführung des Dispatchers und Schedulers Zeit von der Zeitscheibe der nächsten Task verbraucht.\\
+aufgerufen werden. Diese Funktion initialisiert den Standardscheduler (Zeile 3, siehe \refnn{subsec:scheduler-impl}), die Taktfrequenz des Prozessors (Zeile 5), die UART-Schnittstelle (Zeile 6) und den Timer, der die Dispatcher Interrupts auslöst (Zeile 7). Danach wird der aktuelle Kontext gespeichert und der Stackpointer als Systemstack gesichert (Zeile 10 - 11). Der Systemstack wird für Interruptserviceroutinen innerhalb von Jefax verwendet.\\
+Nun wird der Kontext auf denjenigen der vom Scheduler ausgewählten Task (\lstinline$getRunningTask()$, Zeile 13) gewechselt.\\
+Erst jetzt (Zeile 15, \lstinline$enableInterrupts()$) werden die Interrupts global aktiviert. Der Grund hierfür ist, dass sämtliche ISRs in Jefax den Kontext der aktuell laufenden Task sichern. Das bedeutet, dass zu jedem Zeitpunkt, an dem ein Interrupt den Programmfluss unterbrechen kann, eine Task laufen muss. Die ISRs in Jefax werden durch das folgende Makro definiert:
 
-Die eigentliche Taskfuntion der Dispatcher Task sieht folgender Maßen aus:
+\begin{lstlisting}[title=interrupt.h]
+#define JEFAX_ISR(vect, func)								\
+ISR(vect, ISR_NAKED)										\
+{															\
+	SAVE_CONTEXT();											\
+	getRunningTask()->stackpointer = (uint8_t *) SP;		\
+	ENTER_SYSTEM_STACK();									\
+	func();													\
+	SP = (uint16_t) (getRunningTask()->stackpointer);		\
+	RESTORE_CONTEXT();										\
+	reti();													\
+}
+\end{lstlisting}
+
+Dem Makro \lstinline$JEFAX_ISR()$ muss als erster Parameter der Interruptvektor übergeben werden, der behandelt werden soll. Der zweite Parameter ist eine Funktion, die vorzugsweise vom Typ \lstinline$void (*func)(void)$ sein sollte. Diese Funktion sollte die Behandlung des Interrupts beinhalten. Die \lstinline$JEFAX_ISR()$ sichert beim Auftritt des Interrupts den Kontext der aktuell laufenden Task und deren Stackpointer (Zeile 4 - 5). Danach wird der Systemstack betreten (Zeile 6). Alle ISR in Jefax arbeiten auf dem Systemstack. Nun wird die übergebene Funktion ausgeführt (Zeile 7).\\
+Am Ende wird der Kontext der aktuellen Task wieder hergestellt und zu dieser zurückgesprungen (Zeile 8 - 9).\\
+Das Sichern des Kontext (\lstinline$SAVE_CONTEXT()$) umfasst lediglich das Ablegen aller CPU-Register sowie das SREG auf dem Stack der Task. \lstinline$RESTORE_CONTEXT()$ macht genau das Gegenteil und lädt die Register vom Stack.\\
+Der Dispatcher behandelt Timerinterrupts mit einer \lstinline$JEFAX_ISR()$. Hiermit werden die Tasks unterbrochen und ausgewechselt.
 
 \begin{lstlisting}[title=dispatcher.c]
-static int runDispatcher()
-{
-	task_t* toDispatch = schedule();
-	dispatch(toDispatch);
-	return 0;
-}
+JEFAX_ISR(TCC0_OVF_vect, schedule)
 \end{lstlisting}
 
-Zuerst wird der Scheduler aufgerufen (Zeile 3). Dieser entscheidet, welche Task als nächstes eingewechselt werden soll (siehe \refnn{sec:scheduler}). Die erhaltene Task wird daraufhin eingewechselt (Zeile 4).\\
-
-Das Einwechseln der Task sieht dem letzten Teil der oben genannten ISR sehr ähnlich. Der Stackpointer wird auf denjenigen der ausgewählten Task gewechselt und die Register werden vom Stack geholt. Außerdem wird der Timer TCC0, der in der ISR ausgeschaltet wurde, wieder aktiviert. 
+Im Rahmen dieser ISR wird der Scheduler aufgerufen um eine neue Task auszusuchen, die laufen soll (dazu mehr in \refnn{subsec:scheduler-impl}.
 
 \newpage
 
 \section{Scheduler}
 \label{sec:scheduler}
-Der Scheduler des Kernels entscheidet welche der vorhandenen Tasks als nächstes eingewechselt werden soll. Daher ist er entscheidend für das Verhalten des Taskschedulings und auch dessen Performance. Der Scheduler kann zur Laufzeit durch die Funktion
+Der Scheduler des Kernels entscheidet welche der vorhandenen Tasks als nächstes eingewechselt werden soll. Daher ist er entscheidend für das Verhalten des Taskschedulings und auch dessen Performance. Als Standardschedulingverfahren wird in Jefax ein prioritätengesteuertes Round-Robin-Verfahren verwendet.
+
+\subsection{API}
+\label{subsec:scheduler-api}
+Der Scheduler kann zur Laufzeit mit der Funktion
 
 \begin{lstlisting}
 void setScheduler(scheduler_t *p_scheduler);
 \end{lstlisting}
 
-geändert werden. In Jefax wird der Scheduler durch die Struktur \verb|scheduler_t| repräsentiert.
+geändert werden. In Jefax wird der Scheduler durch die Struktur \lstinline$scheduler_t$ repräsentiert.
 
 \begin{lstlisting}[title=scheduler.h]
 typedef struct
@@ -214,15 +230,16 @@ typedef struct
 } scheduler_t;
 \end{lstlisting}
 
-Um einen eigenen Scheduler zu nutzen, müssen die Callback Funktionen der Struktur implementiert werden. Die Funktion \lstinline$init()$ wird aufgerufen, sobald der Scheduler als neuer Scheduler des Kernels bestimmt wurde. Dabei müssen vor allem die readyList und die blockingList so bearbeitet werden, dass der Scheduler mit den Listen richtig arbeiten kann.\\
+Um einen selbstimplementierten Scheduler in Jefax zu nutzen, müssen die Callback Funktionen der Struktur implementiert werden. Die Funktion \lstinline$init()$ wird aufgerufen, sobald der Scheduler als neuer Scheduler des Kernels bestimmt wurde. Dabei müssen vor allem die \lstinline$readyList$ und die \lstinline$blockingList$ so bearbeitet werden, dass der Scheduler mit den Listen richtig arbeiten kann.\\
 
-Die Funktion \lstinline$getNextTask()$ wird vom Dispatcher aufgerufen (siehe \refnn{sec:dispatcher}) und bestimmt welche Task als nächste eingewechselt wird. Als Rückgabewert wird die einzuwechselnde Task oder NULL, wenn keine Task gefunden wurde, erwartet. Wird NULL zurückgegeben wird die sogenannte idleTask eingwechselt, die als Dummytask dient.\\
+Die Funktion \lstinline$getNextTask()$ wird vom indirekt durch den Dispatcher im Rahmen des Timerinterrupts aufgerufen (siehe \refnn{subsec:dispatcher-impl}). Damit läuft diese Funktion im Interruptkontex. Es dürfen also keine Aufrufe gemacht werden, die zum Schlafen führen könnten (z.B. \lstinline$lockMutex()$). Die Aufgabe dieser Funktion ist es zu bestimmen, welche Task als nächstes eingwechselt werden soll. Als Rückgabewert wird die einzuwechselnde Task erwartet oder \lstinline$NULL$, wenn keine Task gefunden wurde. Wird \lstinline$NULL$ zurückgegeben wechselt Jefax die sogenannte idleTask ein, die nichts macht und als Dummy dient.\\
 
-Mit dem Callback \lstinline$taskStateChanged(task_t*)$, wird dem Scheduler signalisiert, dass eine Task ihren Zustand geändert hat. Der Scheduler sollte entsprechend auf diese Änderung reagieren. Als Parameter wird die betroffene Task übergeben.\\
+Mit dem Callback \lstinline$taskStateChanged(task_t*)$, wird dem Scheduler signalisiert, dass eine Task ihren Zustand geändert hat. Der Scheduler sollte entsprechend auf diese Änderung reagieren, z.B. die aktuelle Task verdrängen falls eine höherpriore Task rechenbereit wurde. Als Parameter wird die Task übergeben, deren Zustand sich verändert hat.\\
 
-Der Aurfruf von \lstinline$taskWokeUp(task_t*)$ scheint auf den ersten Blick dem Aufruf von \lstinline$taskStateChanged(task_t*)$ sehr zu ähneln. Jedoch gibt es einen bedeutenden Unterschied: \lstinline$taskWokeUp(task_t*)$ läuft im Interrupt Kontext, es darf also nicht auf den nächsten Timerinterrupt gewartet werden (z.B. durch schlafen, yield, etc).\\
+Der Aurfruf von \lstinline$taskWokeUp(task_t*)$ scheint auf den ersten Blick dem Aufruf von \lstinline$taskStateChanged(task_t*)$ sehr zu ähneln. Jedoch gibt es einen bedeutenden Unterschied: \lstinline$taskWokeUp(task_t*)$ läuft im Interrupt Kontext, es darf also nicht auf den nächsten Timerinterrupt gewartet werden (z.B. durch schlafen, yield, etc). Hier ist die übergebene Task diejenige, die aufgewacht ist.\\
 
-Die beiden Listen readyList und blockingList werden gesetzt, sobald der Scheduler mithilfe von \lstinline$setScheduler(scheduler_t*)$ als neuer Scheduler bestimmt wird. Sie beinhalten die Tasks, die den der Liste entsprechenden Zustand haben. Auf die aktuell laufende Task kann mit der Funktion
+Die beiden Listen \lstinline$readyList$ und \lstinline$blockingList$ werden gesetzt, sobald der Scheduler mithilfe von \lstinline$setScheduler(scheduler_t*)$ als neuer Scheduler bestimmt wird. Sie beinhalten die Tasks, die den der Liste entsprechenden Zustand haben.\\
+Auf die aktuell laufende Task kann mit der Funktion
 
 \begin{lstlisting}
 task_t *getRunningTask();
@@ -230,31 +247,104 @@ task_t *getRunningTask();
 
 zugegriffen werden.\\
 
-Die zentrale Funktion des Schedulers, die auch vom Dispatcher aufgerufen wird \lstinline$schedule()$ ist folgender Maßen implementiert:
+Der Status einer Task (\lstinline$RUNNING$, \lstinline$BLOCKING$, \lstinline$READY$) kann über die Funktion
 
-\begin{lstlisting}[title=scheduler.c]
-task_t* schedule()
+\begin{lstlisting}
+void setTaskState(task_t *p_task, taskState_t p_state);
+\end{lstlisting}
+
+geändert werden.\\
+Alternativ können die Funktionen \lstinline$yield()$ und \lstinline$void sleep(const int p_ms)$ verwendet werden, um Task in den Zustand \lstinline$READY$ bzw. \lstinline$BLOCKING$ zu überführen.
+Die Funktion \lstinline$int hasRunningTask()$ erlaubt die Überprüfung, ob momentan eine Task läuft. Dies ist genau dann der Fall, wenn nicht die \lstinline$idleTask$ läuft.
+Mit \lstinline$void forceContextSwitch()$ kann ein Kontextswitch, also eine Unterbrechung der aufrufenden Task erzwungen werden.
+
+\subsection{Implementierung}
+\label{subsec:scheduler-impl}
+Bevor der Scheduler genutzt werden kann muss die Funktion
+
+\begin{lstlisting}
+int initScheduler(scheduler_t *p_defaultScheduler)
 {
-	task_t *result;
-	runningTask = scheduler->getNextTask();
-	if(runningTask == NULL)
-		result = &idleTask;
-	else
-		result = runningTask;
-	result->state = RUNNING;
-	return result;
+	int ret;
+	initTask(&idleTask);
+	
+	ret = initTaskLists();
+	if(ret)
+		return ret;
+		
+	ret = initTimerSystem();
+	if(ret)
+		return ret;
+		
+	setScheduler(p_defaultScheduler);
+	setFirstRunningTask();
+	
+	return 0;
 }
 \end{lstlisting}
 
-Zuerst wird die nächste Task durch den Aufruf des Callbacks \lstinline$getNextTask()$ des aktuellen Schedulers ausgewählt (Zeile 4). Die Variable runningTask ist dabei global definiert und stellt die aktuell laufende Task dar.\\
+ausgeführt werden. Diese wird im Rahmen von \lstinline$initDispatcher$ aufgerufen. Zuerst wird die \lstinline$idleTask$ initialisiert (Zeile 4). Danach werden die Tasklisten, als die \lstinline$readyList$ und die \lstinline$blockingList$ initialisiert (\lstinline$ret = initTaskLists()$, Zeile 8). Im Rahmen dieser Funktion wird die \lstinline$readyList$ mit den Tasks aus dem \lstinline$TASKS$ Feld gefüllt.\\
+Daraufhin wird das Timersystem initialisiert, welches für den Aufruf von \lstinline$sleep()$ benötigt wird.\\
+Zuletzt wird der Standardscheduler gesetzt und die erste Task ausgewählt, die geschedult werden soll (Zeile 14 - 15).\\
 
-In Zeile 5 bis 8 wird überprüft, ob der Scheduler eine lauffähige Task gefunden hat. Dies wird durch den Rückgabewert NULL des Callbacks signalisiert. Wird keine Task gefunden, wird die sogenannte idleTask dem Dispatcher zum einwechseln gegeben.\\
+Die zentrale Funktion des Schedulers, die auch vom Dispatcher (siehe \refnn{subsec:dispatcher-impl}) aufgerufen wird, \lstinline$schedule()$ ist folgender Maßen implementiert:
 
-Der Rückgabewert result (siehe Zeile 3) der Funktion stellt schlussendlich die Task dar, die vom Dispatcher eingewechselt wird (vergleiche \refnn{sec:dispatcher}).
+\begin{lstlisting}[title=scheduler.c]
+void schedule()
+{
+	runningTask = scheduler->getNextTask();
+	// no task was found, so schedule idleTask
+	if(runningTask == NULL)
+		runningTask = &idleTask;
+	runningTask->state = RUNNING;
+}
+\end{lstlisting}
+
+Zuerst wird die nächste Task durch den Aufruf des Callbacks \lstinline$getNextTask()$ des aktuellen Schedulers ausgewählt (Zeile 3). Die Variable \lstinline$runningTask$ ist dabei global definiert und stellt die aktuell laufende Task dar.\\
+
+In Zeile 5 wird überprüft, ob der Scheduler eine lauffähige Task gefunden hat. Dies wird durch den Rückgabewert \lstinline$NULL$ des Callbacks signalisiert. Wird keine Task gefunden, wird die sogenannte \lstinline$idleTask$ als \lstinline$runningTask$ ausgewählt.\\
+
+Beim Ändern des Taskzustands wird folgender Code ausgeführt:
+
+\begin{lstlisting}[title=scheduler.c]
+void setTaskState(task_t *p_task, taskState_t p_state)
+{
+	uint8_t irEnabled = enterAtomicBlock();
+	
+	p_task->state = p_state;
+	scheduler->taskStateChanged(p_task);
+		
+	exitAtomicBlock(irEnabled);	
+}
+\end{lstlisting}
+
+Hierbei wird ununterbrechbar (\lstinline$enterAtomicBlock()$) der Zustand der Task geändert (Zeile 5) und danach das Callback des Schedulers (Zeile 6) ausgeführt.\\
+
+Die Funktion \lstinline$void forceContextSwitch()$ hat folgende Implementierung:
+
+\begin{lstlisting}[title=scheduler.c]
+void forceContextSwitch()
+{
+	// save interrupt enable state
+	uint8_t state = SREG & 0x80;
+	// create interrupt
+	sei();
+	FORCE_INTERRUPT(TCC0);
+	
+	// wait to be exchanged
+	while(!TASK_IS_RUNNING(runningTask))
+	{ }
+	
+	if(!state)
+		cli();
+}
+\end{lstlisting}
+
+In Zeile 4 wird der aktuelle Zustand des Interruptenablebits gesichert. Danach wird ein Timerinterrupt des Dispatchers erzwungen. Dazu werden Interrupts aktiviert (Zeile 6) und das Makro \lstinline$FORCE_INTERRUPT()$ aufgerufen (Zeile 7). Diese Makro setzt den Counter des Timers auf den Wert kurz vor dem Auslösen des Interrupts. Nun wird in einer Schleife darauf gewartet, dass die Task wieder den Zustand \lstinline$RUNNING$ annimmt (Zeile 10). Dies impliziert, dass vor dem Aufruf von \lstinline$void forceContextSwitch()$ der Zustand der Task auf einen anderen Zustand als \lstinline$RUNNING$ gesetzt wurde.
 
 \subsection{Zustandsautomat}
 \label{subsec:zustandsautomat}
-In Jefax gibt es 3 Taskzustände: ready, blocking, running. Der Übergang zwischen diesen Zuständen wird in \autoref{fig:zustandsautomat} dargestellt.
+In Jefax gibt es 3 Taskzustände: \lstinline$READY$, \lstinline$RUNNING$, \lstinline$BLOCKING$. Der Übergang zwischen diesen Zuständen wird in \autoref{fig:zustandsautomat} dargestellt.
 
 \begin{figure}[H]
 	\centering
@@ -263,15 +353,15 @@ In Jefax gibt es 3 Taskzustände: ready, blocking, running. Der Übergang zwisch
 	\label{fig:zustandsautomat}
 \end{figure}
 
-Alle Tasks starten initial mit dem Zustand ready. Aus diesem Zustand heraus können die Tasks nur in den Zustand running wechseln (siehe \autoref{fig:zustandsautomat}), indem sie vom Scheduler ausgewählt und durch den Dispatcher eingewechselt werden.\\
+Alle Tasks starten initial mit dem Zustand \lstinline$READY$. Aus diesem Zustand heraus können die Tasks nur in den Zustand \lstinline$RUNNING$ wechseln (siehe \autoref{fig:zustandsautomat}), indem sie vom Scheduler ausgewählt und durch den Dispatcher eingewechselt werden.\\
 
-Aus dem Zustand running kann die Task in die Zustände blocking oder ready wechseln, je nach dem welche Ereignisse zur Laufzeit auftreten. Von blocking gibt es entweder die Möglichkeit in den Zustand ready oder direkt in den Zustand running zu wechseln.\\
+Aus dem Zustand \lstinline$RUNNING$ kann die Task in die Zustände \lstinline$BLOCKING$ oder \lstinline$READY$ wechseln, je nach dem welche Ereignisse zur Laufzeit auftreten. Von \lstinline$BLOCKING$ gibt es entweder die Möglichkeit in den Zustand \lstinline$READY$ oder direkt in den Zustand \lstinline$RUNNING$ zu wechseln.\\
 
-Hierbei handelt es sich jedoch nur um eine Empfehlung für die Zustandsänderung. Wie der Zustandsautomat tatsächlich aussieht hängt von der Implementierung der Funktion taskStateChanged(\verb|task_t|*) des Schedulers ab.
+Hierbei handelt es sich jedoch nur um eine Empfehlung für die Zustandsänderung. Wie der Zustandsautomat tatsächlich aussieht hängt von der Implementierung der Funktion \lstinline$taskStateChanged()$ (siehe \refnn{subsec:scheduler-api}) des Schedulers ab.
 
 \subsection{Round Robin Scheduler}
 \label{subsec:round-robin-scheduler}
-Der einzige standardmäßig implementierte Scheduler in Jefax - und damit auch der Defaultscheduler - ist ein prioritätengesteuerter Round Robin Scheduler.Dieser kann über die Funktion
+Der einzige standardmäßig implementierte Scheduler in Jefax - und damit auch der Defaultscheduler - ist ein prioritätengesteuerter Round-Robin-Scheduler. Dieser kann über die Funktion
 
 \begin{lstlisting}
 scheduler_t *getRRScheduler();
@@ -279,10 +369,10 @@ scheduler_t *getRRScheduler();
 
 genutzt werden.\\
 
-Der Scheduler implementiert sämtliche Callbacks der \verb|scheduler_t| Struktur.
-Die \lstinline$init()$ Funktion sortiert die readyList nach Priorität der Tasks, damit der Scheduler korrekt mit der Liste arbeiten kann. Dabei steht die Task mit höchster Priorität (niedrigstem Wert) an letzter Stelle der Liste.\\
+Der Scheduler implementiert sämtliche Callbacks der \lstinline$scheduler_t$ Struktur.
+Die \lstinline$init()$ Funktion sortiert die \lstinline$readyList$ nach Priorität der Tasks, damit der Scheduler korrekt mit der Liste arbeiten kann. Dabei steht die Task mit höchster Priorität (niedrigstem Wert) an letzter Stelle der Liste.\\
 
-Die Implementierung der Funktion \lstinline$void taskStateChanged(task_t*)$ prüft, ob die übergebene Task in den Zustand ready gewechselt hat, und wenn ja, ob die Task eine höhere Priorität als die momentan laufende Task besitzt. In diesem Fall wird die aktuell laufende Task ausgewechselt. Außerdem prüft die Funktion, ob die runningTask ihren Zustand von running in einen der anderen geändert hat. Auch in diesem Fall wird die runningTask ausgewechselt.\\
+Die Implementierung der Funktion \lstinline$void taskStateChanged(task_t*)$ prüft, ob die übergebene Task in den Zustand \lstinline$READY$ gewechselt hat, und wenn ja, ob die Task eine höhere Priorität als die momentan laufende Task besitzt. In diesem Fall wird die aktuell laufende Task ausgewechselt. Außerdem prüft die Funktion, ob die \lstinline$runningTask$ ihren Zustand von \lstinline$RUNNING$ in einen der anderen geändert hat. Auch in diesem Fall wird die \lstinline$runningTask$ ausgewechselt.\\
 
 Die Funktion \lstinline$taskWokeUp(task_t*)$ funktioniert ähnlich. Auch hier wird geprüft, ob die aufgewachte Task eine höhere Priorität als die laufende Task hat. Ist dies der Fall wird ein Kontextwechsel erzwungen, jedoch nicht auf den Interrupt gewartet. Da diese Funktion im Interruptkontext abläuft, würde ein Warten auf den Interrupt zu einer Endlosschleife führen.\\
 
@@ -298,9 +388,9 @@ static task_t* getNextTaskRR()
 }
 \end{lstlisting}
 
-Im ersten Schritt in Zeile 3, werden alle Tasks in der blockingList, deren Zustand nicht mehr blocking und damit ready ist (siehe \refnn{subsec:zustandsautomat}), in die readyList einsortiert. Dabei werden sie auch wieder entsprechend ihrer Priorität in die Liste eingefügt.\\
+Im ersten Schritt in Zeile 3, werden alle Tasks in der \lstinline$blockingList$, deren Zustand nicht mehr \lstinline$BLOCKING$ und damit \lstinline$READY$ ist (siehe \refnn{subsec:zustandsautomat}), in die \lstinline$readyList$ einsortiert. Dabei werden sie auch wieder entsprechend ihrer Priorität in die Liste eingefügt.\\
 
-Der nächste Schritt (Zeile 4), in dem die nächste Task aus der Ready List ausgewählt wird hat folgende Implementierung:
+Der nächste Schritt (Zeile 4), in dem die nächste Task aus der \lstinline$readyList$ ausgewählt wird, hat folgende Implementierung:
 
 \begin{lstlisting}[title=schedulerRR.c]
 //ready list is empty
@@ -316,9 +406,9 @@ if(isEmpty(schedulerRR.readyList)) {
 }
 \end{lstlisting}
 
-Zuerst wird unterschieden, ob die readyList leer ist (Zeile 2). Ist dies der Fall, kann keine neue Task ausgewählt werden. Es kann lediglich die aktuelle Task weiterlaufen oder keine Task eingewechselt werden. Hierbei wird geprüft, ob es überhaupt eine laufende Task gibt. Dies ist genau dann der Fall, wenn eine andere Task als die idleTask läuft. Gibt es eine laufende Task, wird weiterhin geprüft, ob die runningTask überhaupt weiterlaufen kann, also nicht den Zustand blocking hat (Zeile 3). Kann die runningTask nicht weiterlaufen wird als Rückgabewert NULL festeglegt (Zeile 4), ansonsten die runningTask (Zeile 7).\\
+Zuerst wird unterschieden, ob die \lstinline$readyList$ leer ist (Zeile 2). Ist dies der Fall, kann keine neue Task ausgewählt werden. Es kann lediglich die aktuelle Task weiterlaufen oder keine Task (bzw. die \lstinline$idleTask$) eingewechselt werden. Hierbei wird geprüft, ob es überhaupt eine laufende Task gibt. Dies ist genau dann der Fall, wenn eine andere Task als die \lstinline$idleTask$ läuft. Gibt es eine laufende Task, wird weiterhin geprüft, ob die \lstinline$runningTask$ überhaupt weiterlaufen kann, also nicht den Zustand \lstinline$BLOCKING$ hat (Zeile 3). Kann die \lstinline$runningTask$ nicht weiterlaufen wird als Rückgabewert \lstinline$NULL$ festeglegt (Zeile 4), ansonsten die aktuelle \lstinline$runningTask$ (Zeile 7).\\
 
-Ist die readyList nicht leer (else Teil in Zeile 10), muss der Scheduler eine Task aus der Liste heraussuchen. Der Code dazu lautet:
+Ist die \lstinline$readyList$ nicht leer (else Teil in Zeile 10), muss der Scheduler eine Task aus der Liste heraussuchen. Der Code dazu lautet:
 
 \begin{lstlisting}[title=schedulerRR.c]
 // get next task with highest priority
@@ -326,7 +416,7 @@ result = getLast(schedulerRR.readyList);
 
 //next task would have lower prio, keep running task
 if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) &&
-   result->priority > getRunningTask()->priority) {
+   CMP_PRIORITY(result, getRunningTask()) < 0) {
 	getRunningTask()->state = RUNNING;
 	result = getRunningTask();
 } else {
@@ -337,44 +427,82 @@ if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) &&
 }
 \end{lstlisting}
 
-Zuerst holt sich der Scheduler die Task mit der höchsten Priorität aus der readyList ohne sie daraus zu entfernen (Zeile 2). Die Task mit der höchsten Priorität steht immer an der letzten Stelle der Liste.\\
-Als nächstes wird untersucht, ob die aktuell laufende Task noch lauffähig ist und falls ja, ob sie eine höhere Priorität besitzt als die Task aus der readyList (Zeile 5 - 6). Ist dies der Fall, wird die runningTask nicht ausgewechselt und die andere Task auch nicht aus der readyList entfernt. Der Rückgabewert der Funktion ist dann die runningTask (Zeile 7 - 8).\\
-Im anderen Fall wird die gewählte Task aus der readyList entfernt (Zeile 10) und falls die runningTask noch den Zustand running hat, der Zustand der runningTask auf ready geändert (Zeile 12 - 13).\\
+Zuerst holt sich der Scheduler die Task mit der höchsten Priorität aus der \lstinline$readyList$ ohne sie daraus zu entfernen (Zeile 2). Die Task mit der höchsten Priorität steht immer an der letzten Stelle der Liste.\\
+Als nächstes wird untersucht, ob die aktuell laufende Task noch lauffähig ist und falls ja, ob die Task aus der \lstinline$readyList$ eine niedrigere Priorität (höherer Wert) hat als die aktuelle \lstinline$runningTask$(Zeile 5 - 6). Ist dies der Fall, wird die \lstinline$runningTask$ nicht ausgewechselt und die andere Task auch nicht aus der \lstinline$readyList$ entfernt. Der Rückgabewert der Funktion ist dann die \lstinline$runningTask$ (Zeile 7 - 8).\\
+Im anderen Fall wird die gewählte Task aus der \lstinline$readyList$ entfernt (Zeile 10) und falls die \lstinline$runningTask$ noch den Zustand \lstinline$RUNNING$ hat, der Zustand der \lstinline$runningTask$ auf \lstinline$READY$ geändert (Zeile 12 - 13).\\
 
-Im letzten Schritt der \lstinline$getNextTask()$ Funtkion des Round Robin Schedulers wird die runningTask entsprechend ihres Zustandes in die blocking- oder readyList eingeordnet.\\
+Im letzten Schritt der \lstinline$getNextTask()$ Funktion des Round Robin Schedulers wird die \lstinline$runningTask$ entsprechend ihres Zustandes in die \lstinline$blockingList$ oder \lstinline$readyList$ eingeordnet.\\
 
 \chapter{Timer}
 \label{chap:timer}
-Jefax verfügt über eine eigene Timer Komponente, mit der Funktionen in relativen Zeitabständen ausgelöst werden können. Ein Timer wird durch die Struktur \lstinline$timer_t$ dargestellt.
+Jefax verfügt über eine eigene Timer Komponente, mit der Funktionen in relativen Zeitabständen ausgelöst werden können. Diese Schnittstelle wird z.B. auch durch den Scheduler benutzt, um die Funktion \lstinline$sleep()$ zu realisieren (siehe \refnn{subsec:scheduler-api}).
 
-\begin{lstlisting}[title=timer.h]
-typedef struct{
-	void (*callBack) (void*);
-	void *arg;
-	volatile unsigned int ms;
-} timer_t;
+\section{API}
+\label{sec:timer-api}
+Ein Timer wird durch die Struktur \lstinline$timer_t$ dargestellt. Diese Struktur wird mithilfe von 
+
+\begin{lstlisting}
+int initTimer(timer_t *p_timer, unsigned int p_ms, void (*p_callBack) (void*), void * p_arg);
 \end{lstlisting}
 
-Ein Timer verfügt über eine Callback Funktion, die aufgerufen wird, sobald der Timer abgelaufen ist. Der Funktion kann auch ein Argument vom Typ \lstinline$void*$ übergeben werden. Die verbleibende Zeit (in Millisekunden) des Timers wird in der Variable ms gespeichert.\\
+initialisiert. Dabei wird als erster Parameter die Timerstruktur übergeben. Der 2. Parameter gibt die relative Zeit an, nach der der Timer ausgelöst werden soll. Der 3. Parameter stellt die Callbackfunktion dar, die beim Zuschlagen des Timers ausgeführt werden soll. Optional kann dieser Funktion noch ein Argument übergeben werden (letzter Parameter).\\
+Mit 
 
-Um einen eigenen Timer zu initialisieren, wird die Funktion
-
-\begin{lstlisting}[title=timer.h]
-int initTimer(timer_t *p_timer, int p_ms, void (*p_callBack) (void*), void * p_arg);
-\end{lstlisting}
-
-aufgerufen, wobei die Callbackfunktion, deren Argument und die Zeit, nach der der Timer zuschlagen soll, übergeben werden.\\
-Über den Aufruf
-
-\begin{lstlisting}[title=timer.h]
+\begin{lstlisting}
 int addTimer(timer_t p_timer);
 \end{lstlisting}
 
-kann ein Timer aktiviert werden. Nach dem Aufruf dieser Funktion schlägt der Timer frühstens nach der bei \lstinline$initTimer()$ angegebenen Zeit zu.\\
-Bei beiden Funktionen gilt ein Rückgabewert von 0 als Erfolg.\\
-Intern werden die Timer in einer Liste verwaltet und es wird ein Hardware Timer genutzt, um nach der entsprechenden Zeit zuzuschlagen. Dieser Hardware Timer wird auf den niedrigsten Wert aller Timer aus der Timerliste gesetzt, sodass das Timersystem tickless arbeitet. Das Setzen des Timers geschieht immer dann, wenn eine Änderung in der Timerliste vorgenommen wird.\\
-Während der ISR des Timers wird zuerst der Kontext der unterbrochenen Task gespeichert. Daraufhin werden alle Timerwerte um den Wert des Hardwaretimers erniedrigt.\\
-Daraufhin werden alle Timer darauf überprüft, ob sie abgelaufen sind. Ist dies der Fall, wird der Timer aus der Liste entfernt und dessen Callback ausgeführt.\\
+kann der Timer nach der Initialisierung scharf gestellt werden. Die angegebene relative Zeit gilt ab dem Zeitpunkt zu dem diese Funktion aufgerufen wurde. Dabei schlägt der Timer frühestens nach der angegebenen Zeit zu, kann jedoch auch etwas verspätet ausgelöst werden.
+
+\section{Implementierung}
+\label{sec:timer-impl}
+Um die Timerkomponente von Jefax nutzen zu können muss zuerst die Funktion
+
+\begin{lstlisting}[title=timer.c]
+int initTimerSystem()
+{
+	// Set 16 bit timer
+	TIMER_CLOCK.CTRLA = TC_CLKSEL_OFF_gc; // timer off
+	TIMER_CLOCK.CTRLB = 0x00; // select Modus: Normal -> Event/Interrupt at top
+	TIMER_CLOCK.PER = MS_TO_TIMER(100, TIMER_PRESCALER);
+	TIMER_CLOCK.CNT = 0x00;
+	TIMER_CLOCK.INTCTRLA = TC_OVFINTLVL_LO_gc; // Enable overflow interrupt level low
+	
+	return 0;
+}
+\end{lstlisting}
+
+aufgerufen werden. Dabei wird einfach der Hardwaretimer initialisiert, der von dem Timersystem verwendet wird. Der Aufruf dieser Funktion wird bereits durch \lstinline$initScheduler()$ (siehe \refnn{subsec:scheduler-impl}) vorgenommen.\\
+
+Somit ist auch beim Timersystem ein Timerinterrupt der zentrale Bestandteil. Auch hier wird eine \lstinline$JEFAX_ISR$ verwendet. Die Funktion, die den Interrupt behandelt heißt
+
+\begin{lstlisting}[title=timer.c]
+static void decreaseTimers()
+{
+	// get elapsed time
+	unsigned int ms = TIMER_TO_MS(TCD0.PER, TIMER_PRESCALER);
+	unsigned int toDec;
+	int i;
+	
+	// decrease timer values
+	for(i = 0; i < timerCount; ++i) {
+		// prevent timer[i].ms from getting lower than 0
+		toDec = (timers[i].ms >= ms ? ms : timers[i].ms);
+		timers[i].ms -= toDec;
+	}
+	
+	// check for all timers if they elapsed
+	for(i = 0; i < timerCount; ++i) {
+		while(i < timerCount && timers[i].ms <= 0)
+			timerElapsed(i);
+	}
+	if(timerCount > 0)
+		updatePeriod();
+}
+\end{lstlisting}
+
+Hierbei wird die verbleibende Zeit jedes Timers um die Periode des Hardwaretimers verringert (Zeile 4 - 10). Danach wird für jeden Timer überprüft, ob er abgelaufen ist (verbleibende Zeit ist 0) (Zeile 17). Ist der Timer abgelaufen wird sein Callback ausgeführt und er wird aus der Liste der aktiven Timer entfernt.\\
+Am Ende wird der nächste Zuschlagszeitpunkt für den Hardwaretimer festgelegt (Zeile 21). Dabei wird einfach die niedrigste verbleibende Zeit aus allen aktiven Timer ausgewählt und als Periode für den Hardwaretimer gesetzt.
 
 \textbf{Anmerkung:} Damit laufen die Callback Funktionen im Interruptkontext, der Benutzer muss also auf Schlafen und ähnliches verzichten.
 
