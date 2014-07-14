@@ -14,14 +14,13 @@ extern task_t TASKS[];
 // Prototypes
 static void initTimeSliceTimer();
 static void init32MHzClock();
-static void init32MHzClock2();
 
 void initDispatcher()
 {
 	initScheduler(getRRScheduler());
 	
 	init32MHzClock();
-	//initUsart();
+	initUsart();
 	initTimeSliceTimer();
 	
 	// Save the main context
@@ -33,15 +32,6 @@ void initDispatcher()
 	RESTORE_CONTEXT();
 	
 	RET();
-}
-
-static void init32MHzClock2()
-{
-	OSC_CTRL |= OSC_RC32MEN_bm;
-	while(!(OSC_STATUS & OSC_RC32MRDY_bm))
-		;
-	CCP = 0xD8;
-	CLK_CTRL = (1 << CLK_SCLKSEL_gp);
 }
 
 static void init32MHzClock()

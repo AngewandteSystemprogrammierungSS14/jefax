@@ -16,19 +16,18 @@
 
 #define BLUERIDER
 
-// For BlueRider
+// For BlueRider (38400)
 #ifdef BLUERIDER
 	#define USART USARTF0
 	#define USART_PORT PORTF
-	#define BAUDRATE 38400
 	#define RX_IR USARTF0_RXC_vect
 	#define DRE_IR USARTF0_DRE_vect
-/*#else
+#else
 	#define USART USARTC0
 	#define USART_PORT PORTC
 	#define BAUDRATE 115200
 	#define RX_IR USARTC0_RXC_vect
-	#define DRE_IR USARTC0_DRE_vect*/
+	#define DRE_IR USARTC0_DRE_vect
 #endif
 
 #define BSEL ((uint8_t) (F_CPU / (16 * BAUDRATE)) - 1)

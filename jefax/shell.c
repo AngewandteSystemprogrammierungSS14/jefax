@@ -21,6 +21,8 @@ int shellTask()
 	#endif
 
     printNewLine();
+	print("Welcome to jefax!");
+	printNewLine();
 
     while (1) {
         message *msg;
