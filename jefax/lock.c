@@ -12,7 +12,8 @@ void waitSignal(signal_t *p_signal)
 {
 	uint8_t irEnabled = enterAtomicBlock();
 	
-	pushTaskBack(&(p_signal->queue), getRunningTask());
+	// insert task with highest priority on highest index
+	insertTaskPriorityAsc(&(p_signal->queue), getRunningTask());
 	// change to blocking state and wait until wakeup
 	setTaskState(getRunningTask(), BLOCKING);
 	
@@ -22,7 +23,7 @@ void waitSignal(signal_t *p_signal)
 static void wakeUpFirst(signal_t *p_signal)
 {
 	// wake up the first in the queue
-	task_t *task = popTaskFront(&(p_signal->queue));
+	task_t *task = popTaskBack(&(p_signal->queue));
 	if(task != NULL)
 		setTaskState(task, READY);
 }
