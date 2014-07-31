@@ -49,11 +49,15 @@
 \maketitle
 
 \begin{abstract}
-Jefax ist ein einfacher Betriebssystemkernel, der preemptives Scheduling und damit Multitasking realisiert. Zusätzlich sind einfache Synchronisierungsmechanismen wie Mutex und Condition Variable implementiert. Die dynamische Speicherverwaltung erlaubt die Entwicklung flexibler Datenstrukturen und Tasks. Über die serielle UART Schnittstelle ist eine Shell zur Ausgabe von ASCII Strings verfügbar.
+Jefax ist ein einfacher Betriebssystemkernel, der preemptives Scheduling und damit Multitasking realisiert. Zusätzlich sind Synchronisierungsmechanismen wie Mutex und Condition Variable implementiert. Die dynamische Speicherverwaltung erlaubt die Entwicklung flexibler Datenstrukturen und Tasks. Zusätlich wurde eine Nachrichten-System enwickelt, das komfortables und sicheres Senden von Daten über die serielle Schnittstelle erlaubt. Basierend darauf ist über USART Schnittstelle eine Shell verfügbar.
 \end{abstract}
 \clearpage
 
 \tableofcontents
+
+\chapter{Einführung}
+\label{chap:intro}
+Jefax wurde im Rahmen des Fachs Angewandte Systemprogrammierung entwickelt. Es wurde Wert auf Robustheit und Flexibilität des Kernels gelegt. Erweiterungen sollten einfach möglich sein. Dieses Dokument beschreibt das Application Programming Interface (API) sowie die Implementierung der verschiedenen Komponenten.
 
 \chapter{Tasks}
 \label{chap:tasks}
@@ -78,11 +82,11 @@ Eine Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese beste
 \item Pointer auf die Task Funktion
 \item Priorität der Task
 \item Taskstatus (READY, RUNNING, BLOCKING)
-\item Stackpointer, der auf die nächste freie Speicheradresse auf dem Stack zeigt.
-\item Ein Feld von \lstinline$uint8_t$, welches den Stack darstellt.
+\item Stackpointer, der auf die nächste freie Speicheradresse des Stacks zeigt
+\item Ein Feld von \lstinline$uint8_t$, welches den Stack darstellt
 \end{itemize}
 
-Der Stack besitzt zur Laufzeit eine feste Größe, welche durch das Symbol \lstinline$STACK_SIZE$ festgelegt werden kann. Dieses Symbol kann zur Kompilierzeit definiert werden, ansonsten wird ein Standardwert verwendet. Wichtig zu wissen ist hierbei, dass der Stack sich nicht im Compiler-spezifischen Stackbereich befindet (Stack-Section - beginnend von der letzten Adresse im SRAM), sondern in der Data-Section.
+Der Stack besitzt zur Laufzeit eine feste Größe, welche durch das Symbol \lstinline$STACK_SIZE$ festgelegt werden kann. Dieses Symbol kann zur Kompilierzeit definiert werden, ansonsten wird ein Standardwert verwendet. Wichtig zu wissen ist hierbei, dass der Stack sich nicht im compiler-spezifischen Stackbereich befindet (Stack-Section - beginnend von der letzten Adresse im SRAM), sondern in der Data-Section.
 
 \section{API}
 \label{subsec:tasks-api}
@@ -112,6 +116,8 @@ Ein Eintrag im \lstinline$TASKS$ Feld besteht aus:
 \item Stack (muss immer {0} sein)
 \end{itemize}
 
+Der Vorteil dieses \lstinline$TASKS$ Feld is, dass der Benutzer sehr einfach neue Tasks hinzufügen kann. Er muss lediglich dieses Feld um seine Task ereitern. Der jefax Kernel kümmert sich um Initialisierung, Scheduling, usw. .
+
 \section{Implementierung}
 \label{subsec:tasks-impl}
 Da bei den XMega Microcontrollern der Stack von der höchsten zur niedrigsten Adresse wächst, wird der Stackpointer mit
@@ -120,8 +126,7 @@ Da bei den XMega Microcontrollern der Stack von der höchsten zur niedrigsten Ad
 task->stackpointer = task->stack + STACK_SIZE - 1;
 \end{lstlisting}
 
-initialisiert. Anschließend wird die Adresse der Task Funktion auf dem Stack abgelegt (bei den XMega128 3 Byte). Zuletzt werden noch die 32 Arbeitsregister sowie das Statusregister auf dem Stack benötigt.\\
-Damit auch andere Komponenten (z.B. Scheduler) auf die globale \lstinline$TASKS$ Struktur zugreifen können, wird dieses Feld in den jeweiligen Dateien als extern deklariert.
+initialisiert. Anschließend wird die Adresse der Task Funktion auf dem Stack abgelegt (bei den XMega128 3 Byte). Zuletzt werden noch die 32 Arbeitsregister sowie das Statusregister auf dem Stack benötigt. Damit auch andere Komponenten (z.B. Scheduler) auf die globale \lstinline$TASKS$ Struktur zugreifen können, wird dieses Feld in den jeweiligen Dateien als extern deklariert.
 
 \begin{lstlisting}
 extern task_t TASKS[];
@@ -802,6 +807,10 @@ Wurde eine Message empfangen wird \lstinline$parseMessage$ aufgerufen, welche di
 %	\caption{jefax shell}
 %	\label{fig:shell}
 %\end{figure}
+
+\chapter{Tests}
+\label{chap:tests}
+TODO: Carrera Bahn tests
 
 \chapter{Fazit}
 \label{chap:fazit}
