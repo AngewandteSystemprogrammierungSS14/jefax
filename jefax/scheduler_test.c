@@ -1,13 +1,6 @@
-/*
- * scheduler_test.c
- *
- * Created: 16.05.2014 14:06:52
- *  Author: Fabian
- */ 
-
+#include <math.h>
 #include "lock.h"
 #include "scheduler.h"
-#include <math.h>
 
 #define TIME_STEP 10
 #define MAX_X 50

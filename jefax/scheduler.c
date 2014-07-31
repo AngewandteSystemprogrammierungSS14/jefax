@@ -1,20 +1,12 @@
-/*
- * scheduler.c
- *
- * Created: 05.05.2014 09:45:40
- *  Author: Fabian
- */ 
-
+#include <avr/interrupt.h>
 #include "scheduler.h"
 #include "atomic.h"
 #include "timer.h"
-#include "utils.h"
+#include "interrupt.h"
 #include "jefax_xmega128.h"
-#include <avr/interrupt.h>
 
-
-/* prototypes */
 static int initTaskLists();
+static void setFirstRunningTask();
 static void sleepTimerCallback(void *arg);
 static int idleTaskFunction();
 
@@ -25,6 +17,7 @@ static taskList_t readyList;
 static taskList_t blockingList;
 static scheduler_t *scheduler;
 
+/* idleTask runs if no other task can be found to be scheduled. */
 static task_t idleTask = { idleTaskFunction, 255, READY, 0, {0} };
 
 int initScheduler(scheduler_t *p_defaultScheduler)
@@ -41,6 +34,7 @@ int initScheduler(scheduler_t *p_defaultScheduler)
 		return ret;
 		
 	setScheduler(p_defaultScheduler);
+	setFirstRunningTask();
 	
 	return 0;
 }
@@ -56,11 +50,9 @@ static int initTaskLists()
 	if(taskCount <= 0)
 		return -1;
 	
-	runningTask = &idleTask;
-	
+	// add tasks to ready list
 	int i;
-	for(i = 0; i < taskCount; ++i)
-	{
+	for(i = 0; i < taskCount; ++i) {
 		TASKS[i].state = READY;
 		pushTaskBack(&readyList, &TASKS[i]);
 	}
@@ -68,13 +60,21 @@ static int initTaskLists()
 	return 0;
 }
 
-task_t* schedule()
+static void setFirstRunningTask()
+{
+	// init with idleTask, then let scheduler choose
+	runningTask = &idleTask;
+	schedule();
+}
+
+
+void schedule()
 {
 	runningTask = scheduler->getNextTask();
+	// no task was found, so schedule idleTask
 	if(runningTask == NULL)
 		runningTask = &idleTask;
 	runningTask->state = RUNNING;
-	return runningTask;
 }
 
 void yield()
@@ -148,13 +148,9 @@ int hasRunningTask()
 
 static int idleTaskFunction()
 {
-	uint8_t led = 0;
-	
+	volatile int i = 0;
 	while (1) {
-		setLED(~(1 << led++));
-		//_delay_ms(500);
-		if (led == 8)
-			led = 0;
+		++i;
 	}
 	
 	return 0;

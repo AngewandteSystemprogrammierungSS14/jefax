@@ -1,20 +1,11 @@
-/*
- * schedulerRR.c
- *
- * Created: 17.05.2014 11:13:59
- *  Author: Fabian
- */ 
-
-#include "schedulerRR.h"
-#include "stddef.h"
-#include "utils.h"
 #include <avr/interrupt.h>
+#include <stddef.h>
+#include "schedulerRR.h"
+#include "interrupt.h"
 
 static void initSchedulerRR();
 static task_t* getNextTaskRR();
 static void readyUpBlockingTasksRR();
-static int insertTaskRR(taskList_t *p_tasks, task_t *p_task);
-static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task);
 static void taskStateChangedRR(task_t* p_task);
 static void taskWokeUpRR(task_t* p_task);
 
@@ -27,7 +18,8 @@ scheduler_t *getRRScheduler()
 
 static void initSchedulerRR()
 {
-	sortPriority(schedulerRR.readyList);
+	// sorts tasks depending on their priority (ascending)
+	sortPriorityAsc(schedulerRR.readyList);
 }
 
 static task_t* getNextTaskRR()
@@ -37,21 +29,20 @@ static task_t* getNextTaskRR()
 	readyUpBlockingTasksRR();
 	
 	//ready list is empty
-	if(isEmpty(schedulerRR.readyList))
-	{
+	if(isEmpty(schedulerRR.readyList)) {
+		// runningTask cannot keep running return NULL
 		if(!hasRunningTask() || TASK_IS_BLOCKING(getRunningTask()))
 			result = NULL;
 		else {
 			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
 		}
-	}
-	else {
+	} else {
 		// get next task with highest priority
 		result = getLast(schedulerRR.readyList);
 		
 		//next task would have lower prio, keep running task
-		if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) && result->priority > getRunningTask()->priority) {
+		if(hasRunningTask() && !TASK_IS_BLOCKING(getRunningTask()) && CMP_PRIORITY(result, getRunningTask()) < 0) {
 			getRunningTask()->state = RUNNING;
 			result = getRunningTask();
 		} else {
@@ -64,7 +55,7 @@ static task_t* getNextTaskRR()
 		
 	//put runningTask in correct List
 	if(hasRunningTask() && TASK_IS_READY(getRunningTask()))
-		insertTaskRR(schedulerRR.readyList, getRunningTask());
+		insertTaskPriorityAsc(schedulerRR.readyList, getRunningTask());
 	else if(hasRunningTask() && TASK_IS_BLOCKING(getRunningTask()))
 		pushTaskBack(schedulerRR.blockingList, getRunningTask());
 	
@@ -77,36 +68,16 @@ static void readyUpBlockingTasksRR()
 	// for all blocking task check if their state changed to non blocking
 	for(i = 0; i < schedulerRR.blockingList->count; ++i) {
 		if(!TASK_IS_BLOCKING(schedulerRR.blockingList->elements[i])) {
-			insertTaskRR(schedulerRR.readyList, schedulerRR.blockingList->elements[i]);
+			insertTaskPriorityAsc(schedulerRR.readyList, schedulerRR.blockingList->elements[i]);
 			removeTask(schedulerRR.blockingList, i);
 		}
 	}
 }
 
-static int insertTaskRR(taskList_t *p_tasks, task_t *p_task)
-{	
-	int index = getInsertIndexRR(p_tasks, p_task);
-	return insertTask(p_tasks, p_task, index);
-}
-
-static int getInsertIndexRR(taskList_t *p_tasks, task_t *p_task)
-{
-	int result;
-	
-	if(p_tasks->count == 0)
-		return 0;
-			
-	result = 0;
-	while(result < p_tasks->count && p_tasks->elements[result]->priority > p_task->priority)
-		++result;
-	
-	return result;
-}
-
 static void taskStateChangedRR(task_t* p_task)
 {
-	//check if there is any running task, if true check if high prior task got ready
-	if(hasRunningTask() && TASK_IS_READY(p_task) && p_task->priority < getRunningTask()->priority)
+	//check if there is any running task, check if high prior task got ready
+	if(hasRunningTask() && TASK_IS_READY(p_task) && CMP_PRIORITY(p_task, getRunningTask()) > 0)
 		getRunningTask()->state = READY;
 	// if running task is not in running state anymore switch task
 	if(!hasRunningTask() || !TASK_IS_RUNNING(getRunningTask()))
@@ -116,6 +87,6 @@ static void taskStateChangedRR(task_t* p_task)
 /* runs in interrupt context, so calling forceContextSwitch() is not possible */
 static void taskWokeUpRR(task_t* p_task)
 {
-	if(!hasRunningTask() || (p_task->priority < getRunningTask()->priority))
+	if(!hasRunningTask() || (CMP_PRIORITY(p_task, getRunningTask()) > 0 ))
 		FORCE_INTERRUPT(TCC0);
 }

@@ -1,11 +1,10 @@
+#include <avr/interrupt.h>
 #include "dispatcher.h"
 #include "scheduler.h"
 #include "schedulerRR.h"
 #include "atomic.h"
-#include "utils.h"
-#include "jefax_xmega128.h"
+#include "interrupt.h"
 #include "usart.h"
-#include <avr/interrupt.h>
 
 #define TIMER_PRESCALER TC_CLKSEL_DIV256_gc
 
@@ -13,35 +12,26 @@
 extern task_t TASKS[];
 
 // Prototypes
-static void initTimer();
+static void initTimeSliceTimer();
 static void init32MHzClock();
-static int runDispatcher();
-static void dispatch(task_t *p_task);
-
-static task_t dispatcherTask = {runDispatcher, 255, READY, 0, {0}};
 
 void initDispatcher()
 {
 	initScheduler(getRRScheduler());
-	initLED();
 	
 	init32MHzClock();
 	initUsart();
-	enableInterrupts();
-	initTimer();
+	initTimeSliceTimer();
 	
 	// Save the main context
 	SAVE_CONTEXT();
 	main_stackpointer = (uint8_t *) SP;
 	
-	// Switch to dispatcher task
-	initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);
-	
-	DISABLE_TIMER(TCC0);
+	SP = (uint16_t) (getRunningTask()->stackpointer);
+	enableInterrupts();
 	RESTORE_CONTEXT();
-
-	reti();
+	
+	RET();
 }
 
 static void init32MHzClock()
@@ -72,7 +62,7 @@ static void init32MHzClock()
 }
 
 /* Initializes timer for time slices.*/
-static void initTimer()
+static void initTimeSliceTimer()
 {
 	// Set 16 bit timer
 	TCC0.CTRLA = TIMER_PRESCALER; // 256 prescaler -> 3900 / sec -> 65536 max.
@@ -89,35 +79,4 @@ void setInterruptTime(unsigned int p_msec)
 	exitAtomicBlock(irEnabled);
 }
 
-/* Function for dispatcher task. */
-static int runDispatcher()
-{
-	task_t* toDispatch = schedule();
-	dispatch(toDispatch);
-	return 0;
-}
-
-/* Change to the given task. */
-static void dispatch(task_t *p_task)
-{
-	SP = (uint16_t) (p_task->stackpointer);
-	
-	ENABLE_TIMER(TCC0, TIMER_PRESCALER);
-	RESTORE_CONTEXT();
-	reti();
-}
-
-ISR(TCC0_OVF_vect, ISR_NAKED)
-{
-	SAVE_CONTEXT();
-	getRunningTask()->stackpointer = (uint8_t *) SP;
-	
-	// set stackpointer to default task
-	ENTER_SYSTEM_STACK();
-	initTask(&dispatcherTask);
-	SP = (uint16_t) (dispatcherTask.stackpointer);
-	
-	DISABLE_TIMER(TCC0);
-	RESTORE_CONTEXT();
-	reti();
-}
+JEFAX_ISR(TCC0_OVF_vect, schedule)

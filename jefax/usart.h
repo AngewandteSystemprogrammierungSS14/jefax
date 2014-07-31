@@ -14,10 +14,21 @@
 #include "usart_message.h"
 #include "usart_queue.h"
 
-// For BlueRider
-#define USART USARTC0 //USARTF0 //USARTC0
-#define USART_PORT PORTC //PORTF //PORTC
-#define BAUDRATE 115200 //38400L //115200
+#define BLUERIDER
+
+// For BlueRider (38400)
+#ifdef BLUERIDER
+	#define USART USARTF0
+	#define USART_PORT PORTF
+	#define RX_IR USARTF0_RXC_vect
+	#define DRE_IR USARTF0_DRE_vect
+#else
+	#define USART USARTC0
+	#define USART_PORT PORTC
+	#define BAUDRATE 115200
+	#define RX_IR USARTC0_RXC_vect
+	#define DRE_IR USARTC0_DRE_vect
+#endif
 
 #define BSEL ((uint8_t) (F_CPU / (16 * BAUDRATE)) - 1)
 

@@ -1,13 +1,7 @@
-/*
- * lock.c
- *
- * Created: 01.05.2014 09:52:02
- *  Author: Fabian
- */ 
+#include <stddef.h>
 #include "lock.h"
 #include "scheduler.h"
 #include "atomic.h"
-#include <stddef.h>
 
 int initSignal(signal_t *p_signal)
 {
@@ -18,19 +12,27 @@ void waitSignal(signal_t *p_signal)
 {
 	uint8_t irEnabled = enterAtomicBlock();
 	
-	pushTaskBack(&(p_signal->queue), getRunningTask());
+	// insert task with highest priority on highest index
+	insertTaskPriorityAsc(&(p_signal->queue), getRunningTask());
+	// change to blocking state and wait until wakeup
 	setTaskState(getRunningTask(), BLOCKING);
 	
 	exitAtomicBlock(irEnabled);
+}
+
+static void wakeUpFirst(signal_t *p_signal)
+{
+	// wake up the first in the queue
+	task_t *task = popTaskBack(&(p_signal->queue));
+	if(task != NULL)
+		setTaskState(task, READY);
 }
 
 void signalOne(signal_t *p_signal)
 {
 	uint8_t irEnabled = enterAtomicBlock();
 	
-	task_t *task = popTaskFront(&(p_signal->queue));
-	if(task != NULL)
-		setTaskState(task, READY);
+	wakeUpFirst(p_signal);
 			
 	exitAtomicBlock(irEnabled);
 }
@@ -39,13 +41,8 @@ void signalAll(signal_t *p_signal)
 {
 	uint8_t irEnabled = enterAtomicBlock();
 	
-	task_t *task;
 	while(p_signal->queue.count > 0)
-	{
-		task = popTaskFront(&(p_signal->queue));
-		if(task != NULL)
-			setTaskState(task, READY);
-	}
+		wakeUpFirst(p_signal);
 	
 	exitAtomicBlock(irEnabled);
 }

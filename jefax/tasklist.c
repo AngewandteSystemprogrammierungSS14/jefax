@@ -1,17 +1,13 @@
-/*
- * tasklist.c
- *
- * Created: 17.05.2014 10:37:50
- *  Author: Fabian
- */ 
-
+#include <stddef.h>
 #include "tasklist.h"
-#include "stddef.h"
+
+static void sortPriority(taskList_t *p_list, int p_asc);
+static int getTaskPriorityInsertIndex(taskList_t *p_list, task_t *p_task, int p_asc);
 
 int initTaskList(taskList_t *p_list)
 {
 	p_list->count = 0;
-	p_list->size = DEF_TASK_LIST_SIZE;
+	p_list->size = TASK_LIST_SIZE;
 	
 	return 0;
 }
@@ -99,8 +95,7 @@ task_t* removeTask(taskList_t *p_list, const int p_index)
 int containsTask(taskList_t *p_list, task_t *p_task)
 {
 	int i;
-	for(i = 0; i < p_list->count; ++i)
-	{
+	for(i = 0; i < p_list->count; ++i) {
 		if(p_list->elements[i] == p_task)
 			break;
 	}
@@ -113,17 +108,30 @@ int isEmpty(taskList_t *p_list)
 	return p_list->count == 0;
 }
 
-void sortPriority(taskList_t *p_list)
+void sortPriorityAsc(taskList_t *p_list)
+{
+	sortPriority(p_list, 1);
+}
+
+void sortPriorityDesc(taskList_t *p_list)
+{
+	sortPriority(p_list, 0);
+}
+
+#define PRIORITY_ASC(t1, t2) (CMP_PRIORITY(t1, t2) > 0)
+#define PRIORITY_DESC(t1, t2) (CMP_PRIORITY(t1, t2) < 0)
+#define SWITCH_POSITION(t1, t2, asc) ((PRIORITY_ASC(t1, t2) && asc) || \
+									  (PRIORITY_DESC(t1, t2) && !asc))
+
+static void sortPriority(taskList_t *p_list, int p_asc)
 {
 	int i, j, changed;
 	task_t *tmp;
-	for(i = p_list->count - 1; i >= 0; --i)
-	{
+	
+	for(i = p_list->count - 1; i >= 0; --i) {
 		changed = 0;
-		for(j = 0; j < i; ++j)
-		{
-			if (p_list->elements[j]->priority < p_list->elements[j+1]->priority)
-			{
+		for(j = 0; j < i; ++j) {
+			if (SWITCH_POSITION(p_list->elements[j], p_list->elements[j+1], p_asc)) {
 				tmp = p_list->elements[j];
 				p_list->elements[j] = p_list->elements[j+1];
 				p_list->elements[j+1] = tmp;
@@ -134,4 +142,31 @@ void sortPriority(taskList_t *p_list)
 		if(!changed)
 			break;
 	}
+}
+
+int insertTaskPriorityAsc(taskList_t *p_list, task_t *p_task)
+{
+	int index = getTaskPriorityInsertIndex(p_list, p_task, 1);
+	return insertTask(p_list, p_task, index);
+}
+
+int insertTaskPriorityDesc(taskList_t *p_list, task_t *p_task)
+{
+	int index = getTaskPriorityInsertIndex(p_list, p_task, 0);
+	return insertTask(p_list, p_task, index);
+}
+
+static int getTaskPriorityInsertIndex(taskList_t *p_list, task_t *p_task, int p_asc)
+{
+	int result;
+	
+	if(p_list->count == 0)
+		return 0;
+	
+	result = 0;
+	// find correct index for corresponding priority
+	while(result < p_list->count && SWITCH_POSITION(p_task, p_list->elements[result], p_asc))
+		++result;
+	
+	return result;
 }

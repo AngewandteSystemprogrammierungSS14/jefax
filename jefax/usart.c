@@ -1,10 +1,10 @@
+#include <avr/interrupt.h>
 #include "usart.h"
 #include "usart_ascii.h"
 #include "shell.h"
 #include "scheduler.h"
-#include "utils.h"
+#include "interrupt.h"
 #include "atomic.h"
-#include <avr/interrupt.h>
 
 static messageQueue *rxQueue;
 static messageQueue *txQueue;
@@ -33,6 +33,8 @@ static void processNewLine();
 static void processData(char data);
 static int processEscapeData(char data);
 
+#include "../../motor_api/PWM_driver.h"
+
 int initUsart()
 {
     rxQueue = getMessageQueue();
@@ -45,7 +47,7 @@ int initUsart()
 
     currentSendMessage = 0;
     currentReceiveMessage = 0;
-
+	
     USART_PORT.OUTSET = PIN3_bm;
 
     USART_PORT.DIRSET = PIN3_bm; // Pin 3 as TX
@@ -55,8 +57,13 @@ int initUsart()
     USART.CTRLC = USART_CHSIZE_8BIT_gc;
 
     // Baudrate
-    USART.BAUDCTRLB = 0;
-    USART.BAUDCTRLA = BSEL;
+	#ifdef BLUERIDER
+		USART.BAUDCTRLA = (uint8_t) 107;
+		USART.BAUDCTRLB = (0b1011 << USART_BSCALE0_bp) | (107 >> 8);
+	#else
+		USART.BAUDCTRLA = BSEL;
+		USART.BAUDCTRLB = 0;
+	#endif
 
     // Enable rx and tx.
     USART.CTRLB |= USART_RXEN_bm;
@@ -192,9 +199,8 @@ static int processEscapeData(char data)
                     ++i;
                 }
 
-                // TODO: This is not so nice ...
                 if (!(columnChars == 1 && escapeData[rowChars + 2] <= HEADER_LIMIT))
-                    printChar(DEL);
+                    printChar(BS);
 
                 del = 0;
             }
@@ -237,7 +243,7 @@ static void receive()
         }
     } else if (data == CR) {
         processNewLine();
-    } else if (data == DEL) {
+    } else if (data == BS) {
         print(QUERY_CURSOR_POS); // Query cursor position
         del = 1;
     } else {
@@ -253,7 +259,7 @@ static void send()
 {
     // Disable DRE IR if buffer is empty.
     if (isMessageQueueEmpty(txQueue) && currentSendMessage == 0)
-        USART.CTRLA = (USART.CTRLA & ~USART_DREINTLVL_gm) | USART_DREINTLVL_OFF_gc;
+		USART.CTRLA = (USART.CTRLA & ~USART_DREINTLVL_gm) | USART_DREINTLVL_OFF_gc;
     else {
         char data;
 
@@ -274,30 +280,5 @@ static void send()
     }
 }
 
-ISR(USARTC0_RXC_vect, ISR_NAKED)
-{
-    SAVE_CONTEXT();
-    getRunningTask()->stackpointer = (uint8_t *) SP;
-
-    ENTER_SYSTEM_STACK();
-
-    receive();
-
-    SP = (uint16_t) (getRunningTask()->stackpointer);
-    RESTORE_CONTEXT();
-    reti();
-}
-
-ISR(USARTC0_DRE_vect, ISR_NAKED)
-{
-    SAVE_CONTEXT();
-    getRunningTask()->stackpointer = (uint8_t *) SP;
-
-    ENTER_SYSTEM_STACK();
-
-    send();
-
-    SP = (uint16_t) (getRunningTask()->stackpointer);
-    RESTORE_CONTEXT();
-    reti();
-}
+JEFAX_ISR(RX_IR, receive)
+JEFAX_ISR(DRE_IR, send)

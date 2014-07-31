@@ -6,9 +6,13 @@
 
 #include <stdint.h>
 
-#define STACK_SIZE 300
+#ifndef STACK_SIZE
+	#define STACK_SIZE 300
+#endif
 
 typedef enum { READY, RUNNING, BLOCKING } taskState_t;
+
+#define CMP_PRIORITY(t1, t2) (((int) t2->priority) - ((int) t1->priority))
 	
 /**
  * This struct represents a task. To use a task, the function

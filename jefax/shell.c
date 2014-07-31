@@ -16,9 +16,13 @@ static message *waitForMessage();
 
 int shellTask()
 {
+	#ifdef DEBUG_SHELL
     initLED();
+	#endif
 
     printNewLine();
+	print("Welcome to jefax!");
+	printNewLine();
 
     while (1) {
         message *msg;
@@ -42,9 +46,13 @@ static void parseMessage(message *msg)
     char *data = getMessageData(msg);
 
     if (strcmp("ledOn", data) == 0) {
+		#ifdef DEBUG_SHELL
         setLED(0XFE);
+		#endif
     } else if (strcmp("ledOff", data) == 0) {
+		#ifdef DEBUG_SHELL
         setLED(0xFF);
+		#endif
     } else if (strcmp("memDump", data) == 0) {
         char out[80] = {0};
 

@@ -1,9 +1,8 @@
-/*
- * atomic.h
- *
- * Created: 01.05.2014 11:55:16
- *  Author: Fabian
- */ 
+/* The atomic component provides integers with atomic access.
+ * The function enterAtomicBlock() disables interrupts and returns
+ * true if the interrupt flag was set before disabling them, else false.
+ * The return value is used by exitAtomicBlock() to decide if the flag
+ * should be set again or not. */ 
 
 #pragma once
 

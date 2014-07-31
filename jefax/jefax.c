@@ -12,14 +12,12 @@
  * with 0 as the first entry.
  */
 task_t TASKS[] = {
-    /*{schedTestTask1, 2, READY, 0, {0}},
+    {schedTestTask1, 2, READY, 0, {0}},
     {schedTestTask2, 2, READY, 0, {0}},
     {schedTestTask3, 1, READY, 0, {0}},
-    {schedTestTask4, 2, READY, 0, {0}},*/
-    //{counterTask1, 1, READY, 0, {0}},
-    {counterTask2, 1, READY, 0, {0}},
-    //CAR_TASK(1),
-    SHELL_TASK(1),
+    {schedTestTask4, 2, READY, 0, {0}},
+    /*CAR_TASK(1),
+    SHELL_TASK(1),*/
     {0, 0, READY, 0, {0}}
 };
 
