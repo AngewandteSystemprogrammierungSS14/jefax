@@ -501,7 +501,7 @@ Am Ende wird der nächste Zuschlagszeitpunkt für den Hardwaretimer festgelegt (
 
 \chapter{Dynamische Speicherverwaltung}
 \label{chap:dynamische-speicherverwaltung}
-Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden. Freigegebener Speicher wird in einer Free List verwaltet, bei weiteren Speicheranforderungen wird zunächst der Speicher der Free List verwendet.
+Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden. Freigegebener Speicher wird in einer Free List verwaltet, bei weiteren Speicheranforderungen wird zunächst der Speicher der Free List verwendet. Die dynamische Speicherverwaltung ist schnell und ressourcenschonend. Möglichst wenige Verwaltungsinformationen werden benutzt, um den Verwaltungsaufwand gering zu halten. 
 
 \section{API}
 \label{subsec:mem-api}
@@ -532,8 +532,8 @@ typedef struct
 Die Felder haben folgende Bedeutung:
 
 \begin{itemize}
-	\item heapStart: Start Adresse des Heaps (durch linker übergeben)
-	\item nextFreeMemory: Nächste freie Speicheradresse die vergeben werden kann (Ohne berücksichtigung der Free-List)
+	\item heapStart: Start Adresse des Heaps (durch Linker übergeben)
+	\item nextFreeMemory: Nächste freie Speicheradresse die vergeben werden kann (ohne berücksichtigung der Free-List)
 	\item heapAllocated: Anzahl an Bytes die auf dem Heap allokiert wurden
 	\item freeListEntries: Anzahl an Einträgen in der Free-List
 \end{itemize}
@@ -544,7 +544,7 @@ Die dynamische Speicherverwaltung ist lose an die avr-gcc malloc Implementierung
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=300px]{images/malloc-std.png}
+	\includegraphics[width=350px]{images/malloc-std.png}
 	\caption{Sections}
 	\label{fig:sections}
 \end{figure}
@@ -566,9 +566,9 @@ typedef struct memoryArea {
 } memoryArea;
 \end{lstlisting}
 
-Vor jedem angeforderten Speicherbereich wird die Größe dieses Speicherbereichs (Variable size) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable next erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Restriktion stellt die size Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, ist der Overhead pro Speicherreservierung die Größe dieser Variable (1 Byte). \\
+Vor jedem angeforderten Speicherbereich (Variable \lstinline$next$) wird die Größe dieses Speicherbereichs (Variable \lstinline$size$) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable \lstinline$next$ erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Restriktion stellt die \lstinline$size$ Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, ist der Overhead pro Speicherreservierung die Größe dieser Variable (1 Byte). \\
 
-Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ memoryArea) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speichblöcke wurde wieder freigegen und befinden sich in der Free List. In jedem Speicherbereich sind die Variablen \lstinline$size$ und \lstinline$next$ abgebildet (benötigt für die Kontrollinformationen). Beim reservieren des Speicherblocks blau wurde die Adresse der Variable next an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline$size$ (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline$next$ zeigt jeweils auf den nächsten Eintrag der Free List.
+Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ \lstinline$memoryArea$) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speichblöcke wurde wieder freigegen und befinden sich in der Free List. In jedem Speicherbereich sind die Variablen \lstinline$size$ und \lstinline$next$ abgebildet (benötigt für die Kontrollinformationen). Beim Reservieren des Speicherblocks Blau wurde die Adresse der Variable \lstinline$next$ an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline$size$ (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline$next$ zeigt jeweils auf den nächsten Eintrag der Free List.
 
 \begin{figure}[H]
 	\centering
@@ -577,7 +577,7 @@ Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Sp
 	\label{fig:memory}
 \end{figure}
 
-Beim reservieren von Speicher wird zunächst der verfügbare Speicher sowie auf Stack-Kollision geprüft. Kann Speicher reserviert werden, wird die Adresse des nächsten verfügbaren Speichers auf ein Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der next Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
+Beim Reservieren von Speicher wird zunächst der verfügbare Speicher geprüft. Zusätzlich muss sichergestellt werden, dass keine Heap-Stack Kollision entsteht. Kann Speicher reserviert werden und ist kein passender Eintrag in der Free-List verfügbar, wird die Adresse des nächsten verfügbaren Speichers auf einen Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der \lstinline$next$ Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
 
 \begin{lstlisting}[title=memory.c]
 newMemoryArea = (memoryArea *) nextFreeMemory;
@@ -590,14 +590,12 @@ nextFreeMemory += size + sizeof(uint8_t);
 return &(newMemoryArea->next);
 \end{lstlisting}
 
-Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht aus einer verketteten Liste von \lstinline$memoryArea$ Elementen. Bei der Speicheranforderungen wird zuerst die Free-List betrachtet. Wird ein passender Eintrag in der Free-List gefunden, wird dieser aus der Free-List entfernt und dem Benutzer zurück geliefert. Wird kein passender Eintrag gefunden, wird überprüft, ob durch ein größeres Element in der Free-List die Speicheranforderung erfüllt werden kann. Ist dies nicht der Fall, wird neuer Speicher aus dem Heap zurück geliefert.\\
+Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht aus einer verketteten Liste von \lstinline$memoryArea$ Elementen. Bei der Speicheranforderungen wird zuerst die Free-List betrachtet. Wird ein passender Eintrag in der Free-List gefunden, wird dieser aus der Free-List entfernt und dem Benutzer zurück geliefert. Wird kein passender Eintrag gefunden, wird überprüft, ob durch ein größeres Element in der Free-List die Speicheranforderung erfüllt werden kann. Ist dies nicht der Fall, wird neuer Speicher aus dem Heap zurück geliefert. Beim Suchen nach passenden Free-List Einträgen wird nach dem Best-Fit Prinzip gearbeitet.\\
 
-Da Heap und Stack aufeinander zu wachsen, besteht hier die Gefahr einer Kollision. Um dies zu vermeiden, wird bei Speicheranforderungen auf eine Kollision überprüft. Der Heap kann nicht weiter als bis zu einem festgelegten Abstand zum Stack wachsen. Dieser Abstand bestimmt die Variable \lstinline$margin$. Ist diese Grenze erreicht, kann \lstinline$allocateMemory()$ keinen Speicher mehr allozieren und liefert 0 zurück. Obwohl es keinen freien Speicher mehr auf dem Heap gibt, kann die Anwendung weiterhin mit dem Stack (der noch margin Bytes frei hat) arbeiten und stürzt nicht ab.
-
-Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu schützen, werden beim allozieren und freigeben Interrupts gesperrt.
+Da Heap und Stack aufeinander zu wachsen, besteht hier die Gefahr einer Kollision. Um dies zu vermeiden, wird bei Speicheranforderungen auf eine Kollision überprüft. Der Heap kann nicht weiter als bis zu einem festgelegten Abstand zum Stack wachsen. Dieser Abstand bestimmt die Variable \lstinline$margin$. Ist diese Grenze erreicht, kann \lstinline$allocateMemory()$ keinen Speicher mehr allozieren und liefert 0 zurück. Obwohl es keinen freien Speicher mehr auf dem Heap gibt, kann die Anwendung weiterhin mit dem Stack (der noch \lstinline$margin$ Bytes frei hat) arbeiten und stürzt nicht ab. Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu schützen, werden beim Allozieren und Freigeben Interrupts gesperrt.
 
 \section{Verbesserungsmöglichkeiten}
-Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann.
+Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und Speicherbrauch kommen. Zusätzlich zum Defragmentieren kann ein Buddy-System implementiert werden, welches durch aufsplitten und mergen von Speicherbereichen noch effektiver arbeiten kann. Nachteil davon ist der erhöhte Speicherverbrauch durch Verwaltungsinformationen sowie aufwendigere berechnungen beim Reservieren und Freigeben von Speicher.
 
 \chapter{Message System / Shell}
 \label{chap:die-shell}
