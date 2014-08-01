@@ -76,11 +76,11 @@ Jefax ist ein einfacher Betriebssystemkernel für Atmels XMega Microcontroller, 
 
 \chapter{Einführung}
 \label{chap:intro}
-Jefax wurde im Rahmen des Fachs Angewandte Systemprogrammierung entwickelt. Es wurde Wert auf Robustheit und Flexibilität des Kernels gelegt. Erweiterungen sollten einfach möglich sein. Dieses Dokument beschreibt das Application Programming Interface (API) sowie die Implementierung der verschiedenen Komponenten. In Abschnitt \ref{chap:tasks} bis \ref{chap:timer} werden grundlegende Funktionen erläutert, welche essentiell für den jefax Kernel sind. Abschnitt \ref{chap:dynamische-speicherverwaltung} sowie \ref{chap:die-shell} stellen zwei zusätzliche Features des Kernels vor.
+Jefax wurde im Rahmen des Fachs Angewandte Systemprogrammierung entwickelt. Der Kernel sollte preemptives Multitasking, Synchronisationsmöglichkeiten und prioritätengesteuertes Scheduling unterstützen. Es wurde Wert auf Robustheit, Flexibilität und Lesbarkeit des Quellcodes gelegt. Zusätzlich sollten Erweiterungen einfach zu realisieren sein. Als Entwicklungsumgebung wurde das AVR Studio von Atmel verwendet. \\Dieses Dokument beschreibt das Application Programming Interface (API) sowie die Implementierung der verschiedenen Komponenten. In Abschnitt \ref{chap:tasks} bis \ref{chap:timer} werden grundlegende Funktionen erläutert, welche essentiell für den jefax Kernel sind. Abschnitt \ref{chap:dynamische-speicherverwaltung} sowie \ref{chap:die-shell} stellen zwei zusätzliche Features des Kernels vor. Die Verwendung des Kernels auf der BlueRider Carrera Bahn der HTWG wird in Abschnitt \ref{chap:tests} beschrieben. Im Kapitel \ref{chap:fazit} werden Kritikpunkte und Verbesserungsmöglichkeiten erläutert.
 
 \chapter{Tasks}
 \label{chap:tasks}
-Wie in einem Multitasking-Betriebssystem üblich, können vom Benutzer verschiedene Tasks erzeugt werden, die vom Scheduler geschedult werden. Intern werden Tasks beispielsweise für die Shell verwendet. Jede Tasks besitzt ihren eigenen Task-Kontext. Bei einem Kontextwechsel wird dieser gesichert bzw. wiederhergestellt. Verschiedene Schedulingverfahren erlauben das quasi-parallele Ausführen der Tasks.
+Wie in einem Multitasking-Betriebssystem üblich, können vom Benutzer verschiedene Tasks erzeugt werden welche vom Scheduler geschedult werden. Intern werden Tasks beispielsweise für die Shell verwendet. Jede Tasks besitzt ihren eigenen Task-Kontext. Bei einem Kontextwechsel wird dieser gesichert bzw. wiederhergestellt. Verschiedene Schedulingverfahren erlauben das quasi-parallele Ausführen der Tasks.
 
 \begin{lstlisting}[title=task.h]
 typedef struct {
@@ -105,7 +105,7 @@ Eine Task wird durch die Struktur \lstinline$task_t$ repräsentiert. Diese beste
 	\item Ein Feld von \lstinline$uint8_t$, welches den Stack darstellt
 \end{itemize}
 
-Der Stack besitzt zur Laufzeit eine feste Größe, welche durch das Symbol \lstinline$STACK_SIZE$ festgelegt werden kann. Dieses Symbol kann zur Kompilierzeit definiert werden, ansonsten wird ein Standardwert verwendet. Wichtig zu wissen ist hierbei, dass der Stack sich nicht im compiler-spezifischen Stackbereich befindet (Stack-Section - beginnend von der letzten Adresse im SRAM), sondern in der Data-Section.
+Der Stack besitzt zur Laufzeit eine feste Größe, welche durch das Symbol \lstinline$STACK_SIZE$ festgelegt werden kann. Dieses Symbol kann zur Kompilierzeit definiert werden, ansonsten wird ein Standardwert verwendet. Wichtig ist hierbei, dass der Stack sich nicht im compiler-spezifischen Stackbereich befindet (Stack-Section - beginnend von der letzten Adresse im SRAM) sondern in der Data-Section.
 
 \section{API}
 \label{subsec:tasks-api}
@@ -520,7 +520,7 @@ Am Ende wird der nächste Zuschlagszeitpunkt für den Hardwaretimer festgelegt (
 
 \chapter{Dynamische Speicherverwaltung}
 \label{chap:dynamische-speicherverwaltung}
-Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden. Freigegebener Speicher wird in einer Free-List verwaltet, bei weiteren Speicheranforderungen wird zunächst der Speicher der Free-List verwendet. Die dynamische Speicherverwaltung ist schnell und ressourcenschonend. Möglichst wenige Verwaltungsinformationen werden benutzt, um den Verwaltungsaufwand gering zu halten. 
+Für die dynamische Speicherverwaltung wurden eigene malloc und free Implementierungen erstellt. Diese erlauben das dynamische Reservieren von Speicher auf dem Heap durch verschiedene Tasks. Die Speicherverwaltung wird durch Interrupt-sperren geschützt, um race conditions zu verhindern. Alle Funktionsaufrufe sind nicht blockierend und dürfen auch von ISRs aufgerufen werden. Ist kein Speicher mehr verfügbar, geben die Funktionen einen Fehlerwert zurück. Die \lstinline$allocateMemory()$ Funktion prüft bei Speicheranforderungen den vergebenen und noch verfügbaren Speicher, um Kollisionen mit dem Stack zu vermeiden. Freigegebener Speicher wird in einer Free-List verwaltet. Bei weiteren Speicheranforderungen wird zunächst der Speicher der Free-List verwendet. Die dynamische Speicherverwaltung ist schnell und ressourcenschonend. Möglichst wenige Verwaltungsinformationen werden benutzt, um den Verwaltungsaufwand gering zu halten. 
 
 \section{API}
 \label{subsec:mem-api}
@@ -566,7 +566,7 @@ Die dynamische Speicherverwaltung ist lose an die avr-gcc malloc Implementierung
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=350px]{images/malloc-std.png}
-	\caption{Sections}
+	\caption{\url{http://www.nongnu.org/avr-libc/user-manual/malloc.html}}
 	\label{fig:sections}
 \end{figure}
 
@@ -588,7 +588,7 @@ typedef struct memoryArea {
 } memoryArea;
 \end{lstlisting}
 
-Vor jedem angeforderten Speicherbereich (Variable \lstinline$next$) wird die Größe dieses Speicherbereichs (Variable \lstinline$size$) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable \lstinline$next$ erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die einfach verkettete List der Free-List verwendet. Der Vorteil dieses System ist, dass keine separaten Listen benötigt werden, um die Kontrollinformationen zu speichern. Die einzige Limitierung stellt die \lstinline$size$ Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, beträgt der zusätzliche Speicherverbrauch pro Speicherreservierung die Größe dieser Variable (1 Byte).\\
+Vor jedem angeforderten Speicherbereich (Variable \lstinline$next$) wird die Größe dieses Speicherbereichs (Variable \lstinline$size$) abgelegt. Dadurch weiß \lstinline$freeMemory()$, wie viel Byte freigegeben werden müssen. Die Variable \lstinline$next$ erfüllt zwei Zwecke. Bei erfolgreicher Reservierung ist dies die Speicheradresse, die dem Benutzer zurück gegeben wird. Beim Freigeben des Speichers wird dieser Pointer für die einfach verkettete List der Free-List verwendet. Der Vorteil dieses Systems ist, dass keine separaten Listen benötigt werden um die Kontrollinformationen zu speichern. Die einzige Zusatzinformation stellt die \lstinline$size$ Variable dar. Da vor jedem Speicherbereich die Größe gespeichert wird, beträgt der zusätzliche Speicherverbrauch pro Speicherreservierung die Größe dieser Variable (1 Byte).\\
 
 Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Speicherblöcke (vom Typ \lstinline$memoryArea$) abgebildet. Der mittlere (blaue) Speicherblock wurde vom Benutzer reserviert und ist in Benutzung, die beiden grünen Speicherblöcke wurde freigegeben und befinden sich in der Free-List. In jedem Speicherbereich sind die Variablen \lstinline$size$ und \lstinline$next$ abgebildet (benötigt für die Kontrollinformationen). Beim Reservieren des Speicherblocks Blau wurde die Adresse der Variable \lstinline$next$ an den Benutzer gegeben. Die einzige Kontrollinformation stellt die Variable \lstinline$size$ (= 20Byte) dar. In der Free List befinden sich zwei Elemente, die Variable \lstinline$next$ zeigt jeweils auf den nächsten Eintrag der Free-List.
 
@@ -600,7 +600,7 @@ Bild \ref{fig:memory} verdeutlicht diesen Zusammenhang nochmals. Es sind drei Sp
 \end{figure}
 
 \subsubsection{Speicher reservieren/freigeben}
-Beim Reservieren von Speicher muss zunächst sichergestellt werden, dass genügend freier Speicher vorhanden ist und keine Heap-Stack Kollision entsteht. Kann Speicher reserviert werden und ist kein passender Eintrag in der Free-List verfügbar (dazu später mehr), wird die Adresse des nächsten verfügbaren Speichers auf einen Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt(\lstinline$size$)  sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der \lstinline$next$ Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
+Beim Reservieren von Speicher muss zunächst sichergestellt werden, dass genügend freier Speicher vorhanden ist und keine Heap-Stack Kollision entsteht. Kann Speicher reserviert werden und ist kein passender Eintrag in der Free-List verfügbar (dazu später mehr), wird die Adresse des nächsten verfügbaren Speichers auf einen Pointer auf eine \lstinline$memoryArea$ Struktur gecastet. Anschließend wird die Größe des Speicherbereichs gesetzt (\lstinline$size$)  sowie die nächste freie Speicheradresse berechnet. Die Funktion gibt die Adresse der \lstinline$next$ Variable an den Benutzer als benutzbaren Speicher auf dem Heap zurück.
 
 \begin{lstlisting}[title=memory.c]
 newMemoryArea = (memoryArea *) nextFreeMemory;
@@ -618,11 +618,11 @@ Freigegebener Speicher wird in der Free-List verwaltet. Die Free-List besteht au
 Da Heap und Stack aufeinander zu wachsen, besteht hier die Gefahr einer Kollision. Um dies zu vermeiden, wird bei jeder Speicheranforderungen auf eine Kollision überprüft. Der Heap kann nicht weiter als bis zu einem festgelegten Abstand zum Stack wachsen. Dieser Abstand bestimmt die Variable \lstinline$margin$. Ist diese Grenze erreicht, kann \lstinline$allocateMemory()$ keinen Speicher mehr allozieren und liefert 0 zurück. Obwohl es keinen freien Speicher mehr auf dem Heap gibt, kann die Anwendung weiterhin mit dem Stack (der noch \lstinline$margin$ Bytes frei hat) arbeiten und stürzt nicht ab. Um race-conditions zu vermeiden und die Speicherverwaltung vor Interrupts zu schützen, werden beim Allozieren und Freigeben Interrupts gesperrt.
 
 \section{Verbesserungsmöglichkeiten}
-Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum defragmentieren des Speichers. Durch häufiges allozieren und freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und damit Speicherverbrauch kommen. Auch kann ein Buddy-System implementiert werden, welches durch aufsplitten und zusammenfügen von Speicherbereichen noch effektiver arbeiten kann. Nachteil davon ist der erhöhte Speicherverbrauch durch Verwaltungsinformationen sowie aufwendigere Berechnungen beim Reservieren und Freigeben von Speicher.
+Eine Verbesserungsmöglichkeit der Speicherverwaltung wäre eine Funktion zum Defragmentieren des Speichers. Durch häufiges Allozieren und Freigeben von Speicher unterschiedlicher Größe kann es zu Fragmentierung und damit Speicherverbrauch kommen. Auch kann ein Buddy-System implementiert werden, welches durch Aufsplitten und Zusammenfügen von Speicherbereichen noch effektiver arbeiten kann. Nachteil davon ist der erhöhte Speicherverbrauch durch Verwaltungsinformationen sowie aufwendigere Berechnungen beim Reservieren und Freigeben von Speicher.
 
 \chapter{Message System / Shell}
 \label{chap:die-shell}
-Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Das Senden und Empfangen erfolgt Interrupt-gesteuert. Ein Message System wurde implementiert, um einfach und komfortabel Nachrichten über USART senden und empfangen zu können. Um zu verhindern, dass Messages verloren gehen oder Buffer überlaufen, wird die dynamische Speicherverwaltung zum Verwalten der Messages und Queues verwendet. Eine Shell ermöglicht das komfortable Kommunizieren mit dem XMeaga über USART. Die Shell läuft als eigener Task, unterstützt verschiedene Steuer- und Debug-Befehle und wird wie alle Tasks geschedult. Zum Verwalten der USART Nachrichten werden verschiedene Buffer verwendet, welche in den Dateien \lstinline$usart_message.h$ und \lstinline$usart_queue.h$ deklariert sind.
+Zur seriellen Kommunikation wird die USART Schnittstelle des XMega verwendet. Das Senden und Empfangen erfolgt Interrupt-gesteuert. Ein Message System wurde implementiert, um einfach und komfortabel Nachrichten über USART senden und empfangen zu können. Um zu verhindern, dass Messages verloren gehen oder Buffer überlaufen wird die dynamische Speicherverwaltung zum Verwalten der Messages und Queues verwendet. Eine Shell ermöglicht das einfache Kommunizieren mit dem XMeaga über USART. Die Shell läuft als eigener Task, unterstützt verschiedene Steuer- und Debug-Befehle und wird wie alle Tasks geschedult. Zum Verwalten der USART Nachrichten werden verschiedene Buffer verwendet, welche in den Dateien \lstinline$usart_message.h$ und \lstinline$usart_queue.h$ deklariert sind.
 
 \section{Message Queues}
 \label{subsec:shell-queue}
@@ -651,11 +651,11 @@ void enqueue(messageQueue *queue, message *msg);
 message *dequeue(messageQueue *queue);
 \end{lstlisting}
 
-benutzt. Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message Queue verwaltet wird und keine Kopie dieser Message gemacht wird.  Ein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message ist nicht erforderlich.
+Wichtig ist, dass die übergebene Message nach einem Aufruf von \lstinline$enqueue()$ von der Message Queue verwaltet wird und keine Kopie dieser Message gemacht wird.  Ein Aufruf von \lstinline$destroyMessage()$ für die übergebene Message ist nicht erforderlich.
 
 \section{Messages}
 \label{subsec:shell-messages}
-Um Daten zu senden und zu empfangen werden Messages verwendet.
+Zu Senden und Empfangen von Daten werden Messages verwendet.
 
 \begin{lstlisting}
 struct message
@@ -672,11 +672,11 @@ struct message
 
 Die Variable type bestimmt dabei die Art der Messages:
 \begin{itemize}
-	\item TX\_MSG: Messages um über USART zu senden.
-	\item RX\_MSG: Messages um über USART zu empfangen.
+	\item TX\_MSG: Messages um Daten zu Senden.
+	\item RX\_MSG: Messages um Daten zu Empfangen.
 \end{itemize}
 
-Die Variable \lstinline$stackIndex$ wird verwendet, um eine Message als Stack benutzen zu können. je nach \lstinline$MSG_TYPE$ können Byte-weise Daten gepusht oder gepopt werden. Dies erleichtert das Senden und Empfangen bei der USART Kommunikation, da über USART immer nur 1 Byte gesendet/empfangen werden kann. Beispielsweise kann in jedem USART data-receive Interrupt jeweils ein Byte auf die aktuelle Message gepusht werden. Es entfällt das manuelle Berechnen des nächsten freien Bytes in der Message. Zum Senden von Daten können je nach bedarf verschiedene Funktionen benutzt werden.\\
+Die Variable \lstinline$stackIndex$ wird verwendet, um eine Message als Stack benutzen zu können. je nach \lstinline$MSG_TYPE$ können Byte-weise Daten gepusht oder gepopt werden. Dies erleichtert das Senden und Empfangen bei der USART Kommunikation, da über USART immer nur 1 Byte gesendet/empfangen werden kann. Beispielsweise kann in jedem USART data-receive Interrupt jeweils ein Byte auf die aktuelle Message gepusht werden. Es entfällt das manuelle Berechnen des nächsten freien Bytes in der Message. Zum Senden von Daten können je nach Bedarf verschiedene Funktionen benutzt werden.\\
 
 Wie bei Message Queues gibt es jeweils eine Funktion zum Erzeugen und Zerstören von Messages. Es wird dabei ebenfalls die dynamische Speicherverwaltung verwendet. \lstinline$getMessage()$ bekommt als Parameter die Größe der Message in Bytes, sowie den Message Typ, welcher den Stack-Zugriff bestimmt.
 
@@ -753,9 +753,11 @@ Als Standard-Wert ist eine Baudrate von 115200 eingestellt. Baudrate und USART G
 #define USART USARTC0
 #define USART_PORT PORTC
 #define BAUDRATE 115200
+#define RX_IR USARTC0_RXC_vect
+#define DRE_IR USARTC0_DRE_vect
 \end{lstlisting}
 
-Zum Senden und Empfangen werden Low-Level Interrupts verwendet. Wurde ein Byte empfangen, wird der \lstinline$USARTC0_RXC_vect$ Interrupt getriggert. Können Daten in den USART Hardware Buffer kopiert werden, wird der \lstinline$USARTC0_DRE_vect$ Interrupt getriggert (Data Register Empty). Empfangene und zu sendende Messages werden in Message Queues gespeichert. Da das Message System mit dynamischer Speicherverwaltung arbeitet, können keine Messages verloren gehen.
+Zum Senden und Empfangen werden Low-Level Interrupts verwendet. Wurde ein Byte empfangen, wird der \lstinline$RX_IR$ Interrupt getriggert. Können Daten in den USART Hardware Buffer kopiert werden, wird der \lstinline$DRE_IR$ Interrupt getriggert (Data Register Empty). Empfangene und zu sendende Messages werden in Message Queues gespeichert. Da das Message System mit dynamischer Speicherverwaltung arbeitet, können keine Messages verloren gehen.
 
 \begin{lstlisting}
 static messageQueue *rxQueue;
@@ -765,7 +767,7 @@ static messageQueue *txQueue;
 Der Zugriff auf die Message Queues wird durch Interrupt-sperren gesichert, da von Tasks sowie von Interrupts auf diese zugegriffen wird. Beide USART Interrupts arbeiten auf dem System Stack.
 
 \subsection{Empfangen von Messages}
-Es werden so lange Bytes empfangen und in die Message \lstinline$currentReceiveMessage$ gepusht, bis eine neue Zeile erkannt wurde oder eine bestimmte maximale Länge der Message (\lstinline$MAX_RECEIVE_MSG_SIZE$) erreicht wurde. Erst dann wird eine Kopie der \lstinline$currentReceiveMessage$ Message der receive queue hinzugefügt. Eine neue \lstinline$currentReceiveMessage$ wird erzeugt um erneut Empfangene Daten abzuspeichern. Die Empfangsroutine prüft zusätzlich auf verschiedene escape Sequenzen wie DEL, CR, ESC, usw,. Um zu verhindern dass der command prompt gelöscht werden kann wird bei DEL die cursor Position abgefragt. Verschiedene Funktionen garantieren, dass die empfangene Message immer nur die minimale Größe besitzt. Bild \ref{fig:usart_receive} zeigt den groben Ablauf beim Empfangen von Nachrichten.
+Es werden so lange Bytes empfangen und in die Message \lstinline$currentReceiveMessage$ gepusht, bis eine neue Zeile erkannt wurde oder eine bestimmte maximale Länge der Message (\lstinline$MAX_RECEIVE_MSG_SIZE$) erreicht wurde. Erst dann wird eine Kopie der \lstinline$currentReceiveMessage$ der receive queue hinzugefügt. Eine neue \lstinline$currentReceiveMessage$ wird erzeugt um erneut empfangene Daten abzuspeichern. Die Empfangsroutine prüft zusätzlich auf verschiedene escape Sequenzen wie DEL, CR, ESC, usw,. Um zu verhindern dass der command prompt gelöscht werden kann wird bei DEL die cursor Position abgefragt (über ein VT-100 Kommando). Verschiedene Funktionen garantieren, dass die empfangene Message immer nur die minimale Größe besitzt. Bild \ref{fig:usart_receive} zeigt den groben Ablauf beim Empfangen von Nachrichten.
 
 \begin{figure}[H]
 	\centering
@@ -815,9 +817,9 @@ static message *waitForMessage()
 Wurde eine Message empfangen wird \lstinline$parseMessage$ aufgerufen, welche die Message verarbeitet. Folgende befehle sind verfügbar:
 
 \begin{itemize}
-	\item ledOn Schaltet die led1 an
-	\item ledOff Schaltet die led1 aus
-	\item memDump Gibt Informationen der dynamischen Speicherverwaltung aus
+	\item ledOn: Schaltet die led1 an (bei \lstinline$#define DEBUG_SHELL$)
+	\item ledOff: Schaltet die led1 aus (bei \lstinline$#define DEBUG_SHELL$)
+	\item memDump: Gibt Informationen der dynamischen Speicherverwaltung aus
 \end{itemize}
 
 \begin{figure}[H]
@@ -829,17 +831,56 @@ Wurde eine Message empfangen wird \lstinline$parseMessage$ aufgerufen, welche di
 
 \chapter{Tests}
 \label{chap:tests}
-TODO: Carrera Bahn tests
+Während der Entwicklung wurde jefax auf einem Atmel Xplained Board sowie auf den BlueRider Autos (Carrera-Bahn der Hochschule) getestet. Im Folgenden wird erklärt wie über den jefax Kernel ein BlueRider Auto gesteuert wird. \\Die Task \lstinline$carTask()$ ist für die Initialisierung des Motor-Treibers (PWM) zuständig. Zusätzlich setzt diese eine callback Funktion für die Shell.
+
+\begin{lstlisting}[title=car\_control.c]
+int carTask()
+{
+    motorInitDriver();
+    setMessageCallback(processCarMessage);
+    // ...
+}
+\end{lstlisting}
+
+Die Funktion \lstinline$processCarMessage$ übernimmt das Prüfen und Interpretieren der Kommandos und wird von der Shell-Task aufgerufen. Als Parameter bekommt diese die vom Benutzer gesendeten Kommandos.
+
+\begin{lstlisting}[title=car\_control.c]
+// Pseudo code
+void processCarMessage(char *data)
+{
+    if (*data == 'w')
+        speed += toChange;
+    else if (*data == 's')
+        speed -= toChange;
+    else if (*data == 'i')
+    	// Print speed
+    carSetSpeed(speed);
+}
+\end{lstlisting}
+
+Damit \lstinline$carTask()$ geschedult wird, muss diese in der globalen \lstinline$TASKS$ Struktur in \lstinline$jefax.c$ aktiviert werden.
+
+\begin{lstlisting}[title=jefax.c]
+task_t TASKS[] = {
+    CAR_TASK(1),
+    SHELL_TASK(1),
+    {0, 0, READY, 0, {0}}
+};
+\end{lstlisting}
+
+Um die Shell auf den BlueRider Autos zu verwenden, müssen die Korrekten USART Einstellungen konfiguriert werden. Dies geschieht mit \lstinline$#define BLUERIDER$ in der Datei \lstinline$usart.h$. Nun kann der BlueRider über die Shell gesteuert werden:
+
+\begin{itemize}
+	\item \lstinline$w$: Schneller
+	\item \lstinline$s$: Langsamer
+	\item \lstinline$i$: Ausgabe der aktuellen Geschwindigkeitseinstellung
+\end{itemize}
 
 \chapter{Fazit}
 \label{chap:fazit}
 Jefax bietet eine gute Möglichkeit Tasks quasi-parallel auf einem XMega ablaufen zu lassen. Jedoch werden atomare Zugriffe und der gegenseitige Ausschluss durch viele Interruptsperren realisiert. Dadurch hat das System eine hohe Interruptlatenzzeit, was vor allem in Realzeitsystemen beachtet werden muss.
 Das Timer Framework von Jefax wird durch einen Hardware Interrupt realisiert. Somit laufen alle Timer Callbacks im Interruptkontext. Dies verlangt einen gewissen Grad an Erfahrung und Aufmerksamkeit des Nutzers. Intuitiver und weniger fehleranfällig wäre eine Realisierung als Softinterrupt.
 Die Realisierung des Schedulers als struct bietet eine hohen Grad an Erweiterbarkeit und Flexibilität. Jedoch kann durch einen fehlerhaft implementierten Scheduler das komplette System lahmgelegt und untergraben werden.
-
-\begin{thebibliography}{999}
-\bibitem{bib-memory} \url{http://www.nongnu.org/avr-libc/user-manual/malloc.html}
-\end{thebibliography}
 
 \cleardoublepage
 \addcontentsline{toc}{chapter}{\listfigurename}
