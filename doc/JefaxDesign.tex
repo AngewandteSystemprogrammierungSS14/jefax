@@ -158,7 +158,7 @@ Die Kernbestandteile des Scheduling sind der Dispatcher und der Scheduler. Der S
 
 \section{Dispatcher}
 \label{sec:dispatcher}
-Der Dispatcher übernimmt das Auswechseln und Unterbrechen der Tasks. Das zentrale Element des Dispatchers ist ein Timerinterrupt, der in Regelmäßigen Abständen ausgelöst wird. Im Rahmen der Interruptserviceroutine (ISR) wird der Kontext der unterbrochenen Task gesichert, die nächste einzuwechselnde Task ausgewählt (siehe \refnn{sec:scheduler}) und der Kontext der ausgesuchten Task wiederhergestellt. 
+Der Dispatcher übernimmt das Auswechseln und Unterbrechen der Tasks. Das zentrale Element des Dispatchers ist ein Timerinterrupt, der in regelmäßigen Abständen ausgelöst wird. Im Rahmen der Interruptserviceroutine (ISR) wird der Kontext der unterbrochenen Task gesichert, die nächste einzuwechselnde Task ausgewählt (siehe \refnn{sec:scheduler}) und der Kontext der ausgesuchten Task wiederhergestellt. 
 
 \subsection{API}
 \label{subsec:dispatcher-api}
@@ -170,6 +170,8 @@ void setInterruptTime(unsigned int p_msec);
 
 festgelegt werden. Die Funktion bietet eine Auflösung im Millisekundenbereich.\\
 \textbf{Anmerkung:} Der Interrupt kann auch bereits vor Ablauf der Zeitspanne auftreten, wenn beispielsweise eine Task mit einer höheren Priorität als die gerade laufende Task rechenbereit wird.
+
+\newpage
 
 \subsection{Implementierung}
 \label{subsec:dispatcher-impl}
@@ -200,6 +202,7 @@ Dieser Aufruf initialisiert zuerst den Standardscheduler (Zeile 3, siehe auch \r
 Während der Initialisierung des Standardschedulers wählt der Scheduler bereits die Task aus, die als erste im System laufen soll (Zugriff über \lstinline$getRunningTask()$). Der Kontext dieser Task wird in Zeile 13 und Zeile 15 geladen.\\
 Erst im Kontext dieser Task werden die Interrupts systemweit aktiviert (Zeile 15, \lstinline$enableInterrupts()$). Der Zeitpunkt hierfür ist deshalb so spät gewählt, da sämtliche ISRs in Jefax den Kontext der aktuell laufenden Task sichern. Eine frühere Aktivierung der Interrupts hätte eine Race Condition zufolge. In diesem Fall könnte bereits ein Interrupt auftreten, bevor das System in dem Kontext einer Task laufen würde.\\
 Der Aufruf dieser Funktion geschieht beim Initialisieren von Jefax (Aufruf \lstinline$jefax()$).\\
+\newpage
 Die ISRs in Jefax werden durch das folgende Makro definiert:
 
 \begin{lstlisting}[title=interrupt.h]
@@ -279,6 +282,8 @@ geändert werden.\\
 Alternativ können die Funktionen \lstinline$yield()$ und \lstinline$void sleep(const int p_ms)$ verwendet werden, um Task in den Zustand \lstinline$READY$ bzw. \lstinline$BLOCKING$ zu überführen.\\
 Die Funktion \lstinline$int hasRunningTask()$ erlaubt die Überprüfung, ob momentan eine Task läuft. Dies ist genau dann der Fall, wenn nicht die \lstinline$idleTask$ läuft.\\
 Mit \lstinline$void forceContextSwitch()$ kann ein Kontextswitch, also eine Unterbrechung der aufrufenden Task, erzwungen werden.
+
+\newpage
 
 \subsection{Implementierung}
 \label{subsec:scheduler-impl}
@@ -406,6 +411,7 @@ static task_t* getNextTaskRR()
 \end{lstlisting}
 
 Im ersten Schritt in Zeile 3, werden alle Tasks in der \lstinline$blockingList$, deren Zustand nicht mehr \lstinline$BLOCKING$ und damit \lstinline$READY$ ist (siehe \refnn{subsec:zustandsautomat}), in die \lstinline$readyList$ einsortiert. Dabei werden sie auch wieder entsprechend ihrer Priorität in die Liste eingefügt.\\
+\newpage
 Der nächste Schritt (Zeile 4), in dem die nächste Task aus der \lstinline$readyList$ ausgewählt wird, hat folgende Implementierung:
 
 \begin{lstlisting}[title=schedulerRR.c]
@@ -467,6 +473,8 @@ int addTimer(timer_t p_timer);
 \end{lstlisting}
 
 kann der Timer nach der Initialisierung scharf gestellt werden. Die angegebene relative Zeit gilt ab dem Zeitpunkt zu dem diese Funktion aufgerufen wurde. Dabei schlägt der Timer frühestens nach der angegebenen Zeit zu, kann jedoch auch etwas verspätet ausgelöst werden.
+
+\newpage
 
 \section{Implementierung}
 \label{sec:timer-impl}
